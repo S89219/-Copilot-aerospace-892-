@@ -1,0 +1,4059 @@
+## Getting Started 
+chrome://autofill-internals/S89219.Μ-HΤߠ-[histograms892.txt](https://github.com/S89219/-Copilot-aerospace-892-/files/10379530/histograms892.txt)
+
+
+
+
+Internet Engineering Task Force (IETF)                    P. Psenak, Ed.
+Request for Comments: 8920                                   L. Ginsberg
+Category: Standards Track                                  Cisco Systems
+ISSN: 2070-1721                                            W. Henderickx
+                                                                   Nokia
+                                                             J. Tantsura
+                                                                  Apstra
+                                                                J. Drake
+                                                        Juniper Networks
+                                                            October 2020
+
+
+               OSPF Application-Specific Link Attributes
+
+Abstract
+
+   Existing traffic-engineering-related link attribute advertisements
+   have been defined and are used in RSVP-TE deployments.  Since the
+   original RSVP-TE use case was defined, additional applications (e.g.,
+   Segment Routing Policy and Loop-Free Alternates) that also make use
+   of the link attribute advertisements have been defined.  In cases
+   where multiple applications wish to make use of these link
+   attributes, the current advertisements do not support application-
+   specific values for a given attribute, nor do they support indication
+   of which applications are using the advertised value for a given
+   link.  This document introduces new link attribute advertisements in
+   OSPFv2 and OSPFv3 that address both of these shortcomings.
+
+Status of This Memo
+
+   This is an Internet Standards Track document.
+
+   This document is a product of the Internet Engineering Task Force
+   (IETF).  It represents the consensus of the IETF community.  It has
+   received public review and has been approved for publication by the
+   Internet Engineering Steering Group (IESG).  Further information on
+   Internet Standards is available in Section 2 of RFC 7841.
+
+   Information about the current status of this document, any errata,
+   and how to provide feedback on it may be obtained at
+   https://www.rfc-editor.org/info/rfc8920.
+
+Copyright Notice
+
+   Copyright (c) 2020 IETF Trust and the persons identified as the
+   document authors.  All rights reserved.
+
+   This document is subject to BCP 78 and the IETF Trust's Legal
+   Provisions Relating to IETF Documents
+   (https://trustee.ietf.org/license-info) in effect on the date of
+   publication of this document.  Please review these documents
+   carefully, as they describe your rights and restrictions with respect
+   to this document.  Code Components extracted from this document must
+   include Simplified BSD License text as described in Section 4.e of
+   the Trust Legal Provisions and are provided without warranty as
+   described in the Simplified BSD License.
+
+Table of Contents
+
+   1.  Introduction
+     1.1.  Requirements Language
+   2.  Requirements Discussion
+   3.  Existing Advertisement of Link Attributes
+   4.  Advertisement of Link Attributes
+     4.1.  OSPFv2 Extended Link Opaque LSA and OSPFv3 E-Router-LSA
+   5.  Advertisement of Application-Specific Values
+   6.  Reused TE Link Attributes
+     6.1.  Shared Risk Link Group (SRLG)
+     6.2.  Extended Metrics
+     6.3.  Administrative Group
+     6.4.  Traffic Engineering Metric
+   7.  Maximum Link Bandwidth
+   8.  Considerations for Extended TE Metrics
+   9.  Local Interface IPv6 Address Sub-TLV
+   10. Remote Interface IPv6 Address Sub-TLV
+   11. Attribute Advertisements and Enablement
+   12. Deployment Considerations
+     12.1.  Use of Legacy RSVP-TE LSA Advertisements
+     12.2.  Interoperability, Backwards Compatibility, and Migration
+            Concerns
+       12.2.1.  Multiple Applications: Common Attributes with RSVP-TE
+       12.2.2.  Multiple Applications: Some Attributes Not Shared with
+               RSVP-TE
+       12.2.3.  Interoperability with Legacy Routers
+       12.2.4.  Use of Application-Specific Advertisements for RSVP-TE
+   13. Security Considerations
+   14. IANA Considerations
+     14.1.  OSPFv2
+     14.2.  OSPFv3
+   15. References
+     15.1.  Normative References
+     15.2.  Informative References
+   Acknowledgments
+   Contributors
+   Authors' Addresses
+
+1.  Introduction
+
+   Advertisement of link attributes by the OSPFv2 [RFC2328] and OSPFv3
+   [RFC5340] protocols in support of traffic engineering (TE) was
+   introduced by [RFC3630] and [RFC5329], respectively.  It has been
+   extended by [RFC4203], [RFC7308], and [RFC7471].  Use of these
+   extensions has been associated with deployments supporting Traffic
+   Engineering over Multiprotocol Label Switching (MPLS) in the presence
+   of the Resource Reservation Protocol (RSVP), more succinctly referred
+   to as RSVP-TE [RFC3209].
+
+   For the purposes of this document, an application is a technology
+   that makes use of link attribute advertisements, examples of which
+   are listed in Section 5.
+
+   In recent years, new applications have been introduced that have use
+   cases for many of the link attributes historically used by RSVP-TE.
+   Such applications include Segment Routing (SR) Policy
+   [SEGMENT-ROUTING] and Loop-Free Alternates (LFAs) [RFC5286].  This
+   has introduced ambiguity in that if a deployment includes a mix of
+   RSVP-TE support and SR Policy support, for example, it is not
+   possible to unambiguously indicate which advertisements are to be
+   used by RSVP-TE and which advertisements are to be used by SR Policy.
+   If the topologies are fully congruent, this may not be an issue, but
+   any incongruence leads to ambiguity.
+
+   An example of where this ambiguity causes a problem is a network
+   where RSVP-TE is enabled only on a subset of its links.  A link
+   attribute is advertised for the purpose of another application (e.g.,
+   SR Policy) for a link that is not enabled for RSVP-TE.  As soon as
+   the router that is an RSVP-TE head end sees the link attribute being
+   advertised for that link, it assumes RSVP-TE is enabled on that link,
+   even though it is not.  If such an RSVP-TE head-end router tries to
+   set up an RSVP-TE path via that link, it will result in the path
+   setup failure.
+
+   An additional issue arises in cases where both applications are
+   supported on a link but the link attribute values associated with
+   each application differ.  Current advertisements do not support
+   advertising application-specific values for the same attribute on a
+   specific link.
+
+   This document defines extensions that address these issues.  Also, as
+   evolution of use cases for link attributes can be expected to
+   continue in the years to come, this document defines a solution that
+   is easily extensible for the introduction of new applications and new
+   use cases.
+
+1.1.  Requirements Language
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and
+   "OPTIONAL" in this document are to be interpreted as described in
+   BCP 14 [RFC2119] [RFC8174] when, and only when, they appear in all
+   capitals, as shown here.
+
+2.  Requirements Discussion
+
+   As stated previously, evolution of use cases for link attributes can
+   be expected to continue.  Therefore, any discussion of existing use
+   cases is limited to requirements that are known at the time of this
+   writing.  However, in order to determine the functionality required
+   beyond what already exists in OSPF, it is only necessary to discuss
+   use cases that justify the key points identified in the introduction,
+   which are:
+
+   1.  Support for indicating which applications are using the link
+       attribute advertisements on a link
+
+   2.  Support for advertising application-specific values for the same
+       attribute on a link
+
+   [RFC7855] discusses use cases and requirements for Segment Routing
+   (SR).  Included among these use cases is SR Policy, which is defined
+   in [SEGMENT-ROUTING].  If both RSVP-TE and SR Policy are deployed in
+   a network, link attribute advertisements can be used by one or both
+   of these applications.  There is no requirement for the link
+   attributes advertised on a given link used by SR Policy to be
+   identical to the link attributes advertised on that same link used by
+   RSVP-TE; thus, there is a clear requirement to indicate independently
+   which link attribute advertisements are to be used by each
+   application.
+
+   As the number of applications that may wish to utilize link
+   attributes may grow in the future, an additional requirement is that
+   the extensions defined allow the association of additional
+   applications to link attributes without altering the format of the
+   advertisements or introducing new backwards-compatibility issues.
+
+   Finally, there may still be many cases where a single attribute value
+   can be shared among multiple applications, so the solution must
+   minimize advertising duplicate link/attribute pairs whenever
+   possible.
+
+3.  Existing Advertisement of Link Attributes
+
+   There are existing advertisements used in support of RSVP-TE.  These
+   advertisements are carried in the OSPFv2 TE Opaque Link State
+   Advertisement (LSA) [RFC3630] and OSPFv3 Intra-Area-TE-LSA [RFC5329].
+   Additional RSVP-TE link attributes have been defined by [RFC4203],
+   [RFC7308], and [RFC7471].
+
+   Extended Link Opaque LSAs as defined in [RFC7684] for OSPFv2 and E-
+   Router-LSAs [RFC8362] for OSPFv3 are used to advertise link
+   attributes that are used by applications other than RSVP-TE or GMPLS
+   [RFC4203].  These LSAs were defined as generic containers for
+   distribution of the extended link attributes.
+
+4.  Advertisement of Link Attributes
+
+   This section outlines the solution for advertising link attributes
+   originally defined for RSVP-TE or GMPLS when they are used for other
+   applications.
+
+4.1.  OSPFv2 Extended Link Opaque LSA and OSPFv3 E-Router-LSA
+
+   The following are the advantages of Extended Link Opaque LSAs as
+   defined in [RFC7684] for OSPFv2 and E-Router-LSAs [RFC8362] for
+   OSPFv3 with respect to the advertisement of link attributes
+   originally defined for RSVP-TE when used in packet networks and in
+   GMPLS:
+
+   1.  Advertisement of the link attributes does not make the link part
+       of the RSVP-TE topology.  It avoids any conflicts and is fully
+       compatible with [RFC3630] and [RFC5329].
+
+   2.  The OSPFv2 TE Opaque LSA and OSPFv3 Intra-Area-TE-LSA remain
+       truly opaque to OSPFv2 and OSPFv3 as originally defined in
+       [RFC3630] and [RFC5329], respectively.  Their contents are not
+       inspected by OSPF, which instead acts as a pure transport.
+
+   3.  There is a clear distinction between link attributes used by
+       RSVP-TE and link attributes used by other OSPFv2 or OSPFv3
+       applications.
+
+   4.  All link attributes that are used by other applications are
+       advertised in the Extended Link Opaque LSA in OSPFv2 [RFC7684] or
+       the OSPFv3 E-Router-LSA [RFC8362] in OSPFv3.
+
+   The disadvantage of this approach is that in rare cases, the same
+   link attribute is advertised in both the TE Opaque and Extended Link
+   Attribute LSAs in OSPFv2 or the Intra-Area-TE-LSA and E-Router-LSA in
+   OSPFv3.
+
+   The Extended Link Opaque LSA [RFC7684] and E-Router-LSA [RFC8362] are
+   used to advertise any link attributes used for non-RSVP-TE
+   applications in OSPFv2 or OSPFv3, respectively, including those that
+   have been originally defined for RSVP-TE applications (see
+   Section 6).
+
+   TE link attributes used for RSVP-TE/GMPLS continue to use the OSPFv2
+   TE Opaque LSA [RFC3630] and OSPFv3 Intra-Area-TE-LSA [RFC5329].
+
+   The format of the link attribute TLVs that have been defined for
+   RSVP-TE applications will be kept unchanged even when they are used
+   for non-RSVP-TE applications.  Unique codepoints are allocated for
+   these link attribute TLVs from the "OSPFv2 Extended Link TLV Sub-
+   TLVs" registry [RFC7684] and from the "OSPFv3 Extended-LSA Sub-TLVs"
+   registry [RFC8362], as specified in Section 14.
+
+5.  Advertisement of Application-Specific Values
+
+   To allow advertisement of the application-specific values of the link
+   attribute, a new Application-Specific Link Attributes (ASLA) sub-TLV
+   is defined.  The ASLA sub-TLV is a sub-TLV of the OSPFv2 Extended
+   Link TLV [RFC7684] and OSPFv3 Router-Link TLV [RFC8362].
+
+   In addition to advertising the link attributes for standardized
+   applications, link attributes can be advertised for the purpose of
+   applications that are not standardized.  We call such an application
+   a "user-defined application" or "UDA".  These applications are not
+   subject to standardization and are outside of the scope of this
+   specification.
+
+   The ASLA sub-TLV is an optional sub-TLV of the OSPFv2 Extended Link
+   TLV and OSPFv3 Router-Link TLV.  Multiple ASLA sub-TLVs can be
+   present in a parent TLV when different applications want to control
+   different link attributes or when a different value of the same
+   attribute needs to be advertised by multiple applications.  The ASLA
+   sub-TLV MUST be used for advertisement of the link attributes listed
+   at the end of this section if these are advertised inside the OSPFv2
+   Extended Link TLV and OSPFv3 Router-Link TLV.  It has the following
+   format:
+
+
+    0                   1                   2                   3
+    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |              Type             |             Length            |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |  SABM Length  |  UDABM Length |            Reserved           |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |           Standard Application Identifier Bit Mask            |
+   +-                                                             -+
+   |                            ...                                |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |           User-Defined Application Identifier Bit Mask        |
+   +-                                                             -+
+   |                            ...                                |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                      Link Attribute sub-sub-TLVs              |
+   +-                                                             -+
+   |                            ...                                |
+
+   where:
+
+   Type:  10 (OSPFv2), 11 (OSPFv3)
+
+   Length:  Variable
+
+   SABM Length:  Standard Application Identifier Bit Mask Length in
+      octets.  The value MUST be 0, 4, or 8.  If the Standard
+      Application Identifier Bit Mask is not present, the SABM Length
+      MUST be set to 0.
+
+   UDABM Length:  User-Defined Application Identifier Bit Mask Length in
+      octets.  The value MUST be 0, 4, or 8.  If the User-Defined
+      Application Identifier Bit Mask is not present, the UDABM Length
+      MUST be set to 0.
+
+   Standard Application Identifier Bit Mask:  Optional set of bits,
+      where each bit represents a single standard application.  Bits are
+      defined in the "Link Attribute Applications" registry, which is
+      defined in [RFC8919].  Current assignments are repeated here for
+      informational purposes:
+
+                       0 1 2 3 4 5 6 7 ...
+                      +-+-+-+-+-+-+-+-+...
+                      |R|S|F|          ...
+                      +-+-+-+-+-+-+-+-+...
+
+      Bit 0 (R-bit):  RSVP-TE.
+
+      Bit 1 (S-bit):  Segment Routing Policy.
+
+      Bit 2 (F-bit):  Loop-Free Alternate (LFA).  Includes all LFA
+         types.
+
+   User-Defined Application Identifier Bit Mask:  Optional set of bits,
+      where each bit represents a single user-defined application.
+
+   If the SABM or UDABM Length is other than 0, 4, or 8, the ASLA sub-
+   TLV MUST be ignored by the receiver.
+
+   Standard Application Identifier Bits are defined and sent starting
+   with bit 0.  Undefined bits that are transmitted MUST be transmitted
+   as 0 and MUST be ignored on receipt.  Bits that are not transmitted
+   MUST be treated as if they are set to 0 on receipt.  Bits that are
+   not supported by an implementation MUST be ignored on receipt.
+
+   User-Defined Application Identifier Bits have no relationship to
+   Standard Application Identifier Bits and are not managed by IANA or
+   any other standards body.  It is recommended that these bits be used
+   starting with bit 0 so as to minimize the number of octets required
+   to advertise all UDAs.  Undefined bits that are transmitted MUST be
+   transmitted as 0 and MUST be ignored on receipt.  Bits that are not
+   transmitted MUST be treated as if they are set to 0 on receipt.  Bits
+   that are not supported by an implementation MUST be ignored on
+   receipt.
+
+   If the link attribute advertisement is intended to be only used by a
+   specific set of applications, corresponding bit masks MUST be
+   present, and application-specific bit(s) MUST be set for all
+   applications that use the link attributes advertised in the ASLA sub-
+   TLV.
+
+   Application Identifier Bit Masks apply to all link attributes that
+   support application-specific values and are advertised in the ASLA
+   sub-TLV.
+
+   The advantage of not making the Application Identifier Bit Masks part
+   of the attribute advertisement itself is that the format of any
+   previously defined link attributes can be kept and reused when
+   advertising them in the ASLA sub-TLV.
+
+   If the same attribute is advertised in more than one ASLA sub-TLVs
+   with the application listed in the Application Identifier Bit Masks,
+   the application SHOULD use the first instance of advertisement and
+   ignore any subsequent advertisements of that attribute.
+
+   If link attributes are advertised with zero-length Application
+   Identifier Bit Masks for both standard applications and user-defined
+   applications, then any standard application and/or any user-defined
+   application is permitted to use that set of link attributes.  If
+   support for a new application is introduced on any node in a network
+   in the presence of such advertisements, these advertisements are
+   permitted to be used by the new application.  If this is not what is
+   intended, then existing advertisements MUST be readvertised with an
+   explicit set of applications specified before a new application is
+   introduced.
+
+   An application-specific advertisement (Application Identifier Bit
+   Mask with a matching Application Identifier Bit set) for an attribute
+   MUST always be preferred over the advertisement of the same attribute
+   with the zero-length Application Identifier Bit Masks for both
+   standard applications and user-defined applications on the same link.
+
+   This document defines the initial set of link attributes that MUST
+   use the ASLA sub-TLV if advertised in the OSPFv2 Extended Link TLV or
+   in the OSPFv3 Router-Link TLV.  Documents that define new link
+   attributes MUST state whether the new attributes support application-
+   specific values and, as such, are advertised in an ASLA sub-TLV.  The
+   standard link attributes that are advertised in ASLA sub-TLVs are:
+
+   *  Shared Risk Link Group [RFC4203]
+
+   *  Unidirectional Link Delay [RFC7471]
+
+   *  Min/Max Unidirectional Link Delay [RFC7471]
+
+   *  Unidirectional Delay Variation [RFC7471]
+
+   *  Unidirectional Link Loss [RFC7471]
+
+   *  Unidirectional Residual Bandwidth [RFC7471]
+
+   *  Unidirectional Available Bandwidth [RFC7471]
+
+   *  Unidirectional Utilized Bandwidth [RFC7471]
+
+   *  Administrative Group [RFC3630]
+
+   *  Extended Administrative Group [RFC7308]
+
+   *  TE Metric [RFC3630]
+
+6.  Reused TE Link Attributes
+
+   This section defines the use case and indicates the codepoints
+   (Section 14) from the "OSPFv2 Extended Link TLV Sub-TLVs" registry
+   and "OSPFv3 Extended-LSA Sub-TLVs" registry for some of the link
+   attributes that have been originally defined for RSVP-TE or GMPLS.
+
+6.1.  Shared Risk Link Group (SRLG)
+
+   The SRLG of a link can be used in OSPF-calculated IPFRR (IP Fast
+   Reroute) [RFC5714] to compute a backup path that does not share any
+   SRLG group with the protected link.
+
+   To advertise the SRLG of the link in the OSPFv2 Extended Link TLV,
+   the same format for the sub-TLV defined in Section 1.3 of [RFC4203]
+   is used with TLV type 11.  Similarly, for OSPFv3 to advertise the
+   SRLG in the OSPFv3 Router-Link TLV, TLV type 12 is used.
+
+6.2.  Extended Metrics
+
+   [RFC3630] defines several link bandwidth types.  [RFC7471] defines
+   extended link metrics that are based on link bandwidth, delay, and
+   loss characteristics.  All of these can be used to compute primary
+   and backup paths within an OSPF area to satisfy requirements for
+   bandwidth, delay (nominal or worst case), or loss.
+
+   To advertise extended link metrics in the OSPFv2 Extended Link TLV,
+   the same format for the sub-TLVs defined in [RFC7471] is used with
+   the following TLV types:
+
+   12:  Unidirectional Link Delay
+
+   13:  Min/Max Unidirectional Link Delay
+
+   14:  Unidirectional Delay Variation
+
+   15:  Unidirectional Link Loss
+
+   16:  Unidirectional Residual Bandwidth
+
+   17:  Unidirectional Available Bandwidth
+
+   18:  Unidirectional Utilized Bandwidth
+
+   To advertise extended link metrics in the Router-Link TLV inside the
+   OSPFv3 E-Router-LSA, the same format for the sub-TLVs defined in
+   [RFC7471] is used with the following TLV types:
+
+   13:  Unidirectional Link Delay
+
+   14:  Min/Max Unidirectional Link Delay
+
+   15:  Unidirectional Delay Variation
+
+   16:  Unidirectional Link Loss
+
+   17:  Unidirectional Residual Bandwidth
+
+   18:  Unidirectional Available Bandwidth
+
+   19:  Unidirectional Utilized Bandwidth
+
+6.3.  Administrative Group
+
+   [RFC3630] and [RFC7308] define the Administrative Group and Extended
+   Administrative Group sub-TLVs, respectively.
+
+   To advertise the Administrative Group and Extended Administrative
+   Group in the OSPFv2 Extended Link TLV, the same format for the sub-
+   TLVs defined in [RFC3630] and [RFC7308] is used with the following
+   TLV types:
+
+   19:  Administrative Group
+
+   20:  Extended Administrative Group
+
+   To advertise the Administrative Group and Extended Administrative
+   Group in the OSPFv3 Router-Link TLV, the same format for the sub-TLVs
+   defined in [RFC3630] and [RFC7308] is used with the following TLV
+   types:
+
+   20:  Administrative Group
+
+   21:  Extended Administrative Group
+
+6.4.  Traffic Engineering Metric
+
+   [RFC3630] defines the Traffic Engineering Metric.
+
+   To advertise the Traffic Engineering Metric in the OSPFv2 Extended
+   Link TLV, the same format for the sub-TLV defined in Section 2.5.5 of
+   [RFC3630] is used with TLV type 22.  Similarly, for OSPFv3 to
+   advertise the Traffic Engineering Metric in the OSPFv3 Router-Link
+   TLV, TLV type 22 is used.
+
+7.  Maximum Link Bandwidth
+
+   Maximum link bandwidth is an application-independent attribute of the
+   link that is defined in [RFC3630].  Because it is an application-
+   independent attribute, it MUST NOT be advertised in the ASLA sub-TLV.
+   Instead, it MAY be advertised as a sub-TLV of the Extended Link TLV
+   in the Extended Link Opaque LSA in OSPFv2 [RFC7684] or as a sub-TLV
+   of the Router-Link TLV in the E-Router-LSA Router-Link TLV in OSPFv3
+   [RFC8362].
+
+   To advertise the maximum link bandwidth in the OSPFv2 Extended Link
+   TLV, the same format for the sub-TLV defined in [RFC3630] is used
+   with TLV type 23.
+
+   To advertise the maximum link bandwidth in the OSPFv3 Router-Link
+   TLV, the same format for the sub-TLV defined in [RFC3630] is used
+   with TLV type 23.
+
+8.  Considerations for Extended TE Metrics
+
+   [RFC7471] defines a number of dynamic performance metrics associated
+   with a link.  It is conceivable that such metrics could be measured
+   specific to traffic associated with a specific application.
+   Therefore, this document includes support for advertising these link
+   attributes specific to a given application.  However, in practice, it
+   may well be more practical to have these metrics reflect the
+   performance of all traffic on the link regardless of application.  In
+   such cases, advertisements for these attributes can be associated
+   with all of the applications utilizing that link.  This can be done
+   either by explicitly specifying the applications in the Application
+   Identifier Bit Mask or by using a zero-length Application Identifier
+   Bit Mask.
+
+9.  Local Interface IPv6 Address Sub-TLV
+
+   The Local Interface IPv6 Address sub-TLV is an application-
+   independent attribute of the link that is defined in [RFC5329].
+   Because it is an application-independent attribute, it MUST NOT be
+   advertised in the ASLA sub-TLV.  Instead, it MAY be advertised as a
+   sub-TLV of the Router-Link TLV inside the OSPFv3 E-Router-LSA
+   [RFC8362].
+
+   To advertise the Local Interface IPv6 Address sub-TLV in the OSPFv3
+   Router-Link TLV, the same format for the sub-TLV defined in [RFC5329]
+   is used with TLV type 24.
+
+10.  Remote Interface IPv6 Address Sub-TLV
+
+   The Remote Interface IPv6 Address sub-TLV is an application-
+   independent attribute of the link that is defined in [RFC5329].
+   Because it is an application-independent attribute, it MUST NOT be
+   advertised in the ASLA sub-TLV.  Instead, it MAY be advertised as a
+   sub-TLV of the Router-Link TLV inside the OSPFv3 E-Router-LSA
+   [RFC8362].
+
+   To advertise the Remote Interface IPv6 Address sub-TLV in the OSPFv3
+   Router-Link TLV, the same format for the sub-TLV defined in [RFC5329]
+   is used with TLV type 25.
+
+11.  Attribute Advertisements and Enablement
+
+   This document defines extensions to support the advertisement of
+   application-specific link attributes.
+
+   There are applications where the application enablement on the link
+   is relevant; for example, with RSVP-TE, one needs to make sure that
+   RSVP is enabled on the link before sending an RSVP-TE signaling
+   message over it.
+
+   There are applications where the enablement of the application on the
+   link is irrelevant and has nothing to do with the fact that some link
+   attributes are advertised for the purpose of such application.  An
+   example of this is LFA.
+
+   Whether the presence of link attribute advertisements for a given
+   application indicates that the application is enabled on that link
+   depends upon the application.  Similarly, whether the absence of link
+   attribute advertisements indicates that the application is not
+   enabled depends upon the application.
+
+   In the case of RSVP-TE, the advertisement of application-specific
+   link attributes has no implication of RSVP-TE being enabled on that
+   link.  The RSVP-TE enablement is solely derived from the information
+   carried in the OSPFv2 TE Opaque LSA [RFC3630] and OSPFv3 Intra-Area-
+   TE-LSA [RFC5329].
+
+   In the case of SR Policy, advertisement of application-specific link
+   attributes does not indicate enablement of SR Policy.  The
+   advertisements are only used to support constraints that may be
+   applied when specifying an explicit path.  SR Policy is implicitly
+   enabled on all links that are part of the SR-enabled topology
+   independent of the existence of link attribute advertisements.
+
+   In the case of LFA, the advertisement of application-specific link
+   attributes does not indicate enablement of LFA on that link.
+   Enablement is controlled by local configuration.
+
+   In the future, if additional standard applications are defined to use
+   this mechanism, the specification defining this use MUST define the
+   relationship between application-specific link attribute
+   advertisements and enablement for that application.
+
+   This document allows the advertisement of application-specific link
+   attributes with no application identifiers, i.e., both the Standard
+   Application Identifier Bit Mask and the User-Defined Application
+   Identifier Bit Mask are not present (see Section 5).  This supports
+   the use of the link attribute by any application.  In the presence of
+   an application where the advertisement of link attributes is used to
+   infer the enablement of an application on that link (e.g., RSVP-TE),
+   the absence of the application identifier leaves ambiguous whether
+   that application is enabled on such a link.  This needs to be
+   considered when making use of the "any application" encoding.
+
+12.  Deployment Considerations
+
+12.1.  Use of Legacy RSVP-TE LSA Advertisements
+
+   Bit identifiers for standard applications are defined in Section 5.
+   All of the identifiers defined in this document are associated with
+   applications that were already deployed in some networks prior to the
+   writing of this document.  Therefore, such applications have been
+   deployed using the RSVP-TE LSA advertisements.  The standard
+   applications defined in this document may continue to use RSVP-TE LSA
+   advertisements for a given link so long as at least one of the
+   following conditions is true:
+
+   *  The application is RSVP-TE.
+
+   *  The application is SR Policy or LFA, and RSVP-TE is not deployed
+      anywhere in the network.
+
+   *  The application is SR Policy or LFA, RSVP-TE is deployed in the
+      network, and both the set of links on which SR Policy and/or LFA
+      advertisements are required and the attribute values used by SR
+      Policy and/or LFA on all such links are fully congruent with the
+      links and attribute values used by RSVP-TE.
+
+   Under the conditions defined above, implementations that support the
+   extensions defined in this document have the choice of using RSVP-TE
+   LSA advertisements or application-specific advertisements in support
+   of SR Policy and/or LFA.  This will require implementations to
+   provide controls specifying which types of advertisements are to be
+   sent and processed on receipt for these applications.  Further
+   discussion of the associated issues can be found in Section 12.2.
+
+   New applications that future documents define to make use of the
+   advertisements defined in this document MUST NOT make use of RSVP-TE
+   LSA advertisements.  This simplifies deployment of new applications
+   by eliminating the need to support multiple ways to advertise
+   attributes for the new applications.
+
+12.2.  Interoperability, Backwards Compatibility, and Migration Concerns
+
+   Existing deployments of RSVP-TE, SR Policy, and/or LFA utilize the
+   legacy advertisements listed in Section 3.  Routers that do not
+   support the extensions defined in this document will only process
+   legacy advertisements and are likely to infer that RSVP-TE is enabled
+   on the links for which legacy advertisements exist.  It is expected
+   that deployments using the legacy advertisements will persist for a
+   significant period of time.  Therefore, deployments using the
+   extensions defined in this document in the presence of routers that
+   do not support these extensions need to be able to interoperate with
+   the use of legacy advertisements by the legacy routers.  The
+   following subsections discuss interoperability and backwards-
+   compatibility concerns for a number of deployment scenarios.
+
+12.2.1.  Multiple Applications: Common Attributes with RSVP-TE
+
+   In cases where multiple applications are utilizing a given link, one
+   of the applications is RSVP-TE, and all link attributes for a given
+   link are common to the set of applications utilizing that link,
+   interoperability is achieved by using legacy advertisements for RSVP-
+   TE.  Attributes for applications other than RSVP-TE MUST be
+   advertised using application-specific advertisements.  This results
+   in duplicate advertisements for those attributes.
+
+12.2.2.  Multiple Applications: Some Attributes Not Shared with RSVP-TE
+
+   In cases where one or more applications other than RSVP-TE are
+   utilizing a given link and one or more link attribute values are not
+   shared with RSVP-TE, interoperability is achieved by using legacy
+   advertisements for RSVP-TE.  Attributes for applications other than
+   RSVP-TE MUST be advertised using application-specific advertisements.
+   In cases where some link attributes are shared with RSVP-TE, this
+   requires duplicate advertisements for those attributes.
+
+12.2.3.  Interoperability with Legacy Routers
+
+   For the applications defined in this document, routers that do not
+   support the extensions defined in this document will send and receive
+   only legacy link attribute advertisements.  So long as there is any
+   legacy router in the network that has any of the applications
+   enabled, all routers MUST continue to advertise link attributes using
+   legacy advertisements.  In addition, the link attribute values
+   associated with the set of applications supported by legacy routers
+   (RSVP-TE, SR Policy, and/or LFA) are always shared since legacy
+   routers have no way of advertising or processing application-specific
+   values.  Once all legacy routers have been upgraded, migration from
+   legacy advertisements to application-specific advertisements can be
+   achieved via the following steps:
+
+   1)  Send new application-specific advertisements while continuing to
+       advertise using the legacy advertisement (all advertisements are
+       then duplicated).  Receiving routers continue to use legacy
+       advertisements.
+
+   2)  Enable the use of the application-specific advertisements on all
+       routers.
+
+   3)  Keep legacy advertisements if needed for RSVP-TE purposes.
+
+   When the migration is complete, it then becomes possible to advertise
+   incongruent values per application on a given link.
+
+   Documents defining new applications that make use of the application-
+   specific advertisements defined in this document MUST discuss
+   interoperability and backwards-compatibility issues that could occur
+   in the presence of routers that do not support the new application.
+
+12.2.4.  Use of Application-Specific Advertisements for RSVP-TE
+
+   The extensions defined in this document support RSVP-TE as one of the
+   supported applications.  It is, however, RECOMMENDED to advertise all
+   link attributes for RSVP-TE in the existing OSPFv2 TE Opaque LSA
+   [RFC3630] and OSPFv3 Intra-Area-TE-LSA [RFC5329] to maintain
+   backwards compatibility.  RSVP-TE can eventually utilize the
+   application-specific advertisements for newly defined link attributes
+   that are defined as application specific.
+
+   Link attributes that are not allowed to be advertised in the ASLA
+   sub-TLV, such as maximum reservable link bandwidth and unreserved
+   bandwidth, MUST use the OSPFv2 TE Opaque LSA [RFC3630] and OSPFv3
+   Intra-Area-TE-LSA [RFC5329] and MUST NOT be advertised in the ASLA
+   sub-TLV.
+
+13.  Security Considerations
+
+   Existing security extensions as described in [RFC2328], [RFC5340],
+   and [RFC8362] apply to extensions defined in this document.  While
+   OSPF is under a single administrative domain, there can be
+   deployments where potential attackers have access to one or more
+   networks in the OSPF routing domain.  In these deployments, stronger
+   authentication mechanisms such as those specified in [RFC5709],
+   [RFC7474], [RFC4552], or [RFC7166] SHOULD be used.
+
+   Implementations must ensure that if any of the TLVs and sub-TLVs
+   defined in this document are malformed, they are detected and do not
+   facilitate a vulnerability for attackers to crash the OSPF router or
+   routing process.  Reception of a malformed TLV or sub-TLV SHOULD be
+   counted and/or logged for further analysis.  Logging of malformed
+   TLVs and sub-TLVs SHOULD be rate-limited to prevent a denial-of-
+   service (DoS) attack (distributed or otherwise) from overloading the
+   OSPF control plane.
+
+   This document defines a new way to advertise link attributes.
+   Tampering with the information defined in this document may have an
+   effect on applications using it, including impacting traffic
+   engineering, which uses various link attributes for its path
+   computation.  This is similar in nature to the impacts associated
+   with, for example, [RFC3630].  As the advertisements defined in this
+   document limit the scope to specific applications, the impact of
+   tampering is similarly limited in scope.
+
+14.  IANA Considerations
+
+   This specification updates two existing registries:
+
+   *  the "OSPFv2 Extended Link TLV Sub-TLVs" registry
+
+   *  the "OSPFv3 Extended-LSA Sub-TLVs" registry
+
+   The new values defined in this document have been allocated using the
+   IETF Review procedure as described in [RFC8126].
+
+14.1.  OSPFv2
+
+   The "OSPFv2 Extended Link TLV Sub-TLVs" registry [RFC7684] defines
+   sub-TLVs at any level of nesting for OSPFv2 Extended Link TLVs.  IANA
+   has assigned the following sub-TLV types from the "OSPFv2 Extended
+   Link TLV Sub-TLVs" registry:
+
+   10:  Application-Specific Link Attributes
+
+   11:  Shared Risk Link Group
+
+   12:  Unidirectional Link Delay
+
+   13:  Min/Max Unidirectional Link Delay
+
+   14:  Unidirectional Delay Variation
+
+   15:  Unidirectional Link Loss
+
+   16:  Unidirectional Residual Bandwidth
+
+   17:  Unidirectional Available Bandwidth
+
+   18:  Unidirectional Utilized Bandwidth
+
+   19:  Administrative Group
+
+   20:  Extended Administrative Group
+
+   22:  TE Metric
+
+   23:  Maximum link bandwidth
+
+14.2.  OSPFv3
+
+   The "OSPFv3 Extended-LSA Sub-TLVs" registry [RFC8362] defines sub-
+   TLVs at any level of nesting for OSPFv3 Extended LSAs.  IANA has
+   assigned the following sub-TLV types from the "OSPFv3 Extended-LSA
+   Sub-TLVs" registry:
+
+   11:  Application-Specific Link Attributes
+
+   12:  Shared Risk Link Group
+
+   13:  Unidirectional Link Delay
+
+   14:  Min/Max Unidirectional Link Delay
+
+   15:  Unidirectional Delay Variation
+
+   16:  Unidirectional Link Loss
+
+   17:  Unidirectional Residual Bandwidth
+
+   18:  Unidirectional Available Bandwidth
+
+   19:  Unidirectional Utilized Bandwidth
+
+   20:  Administrative Group
+
+   21:  Extended Administrative Group
+
+   22:  TE Metric
+
+   23:  Maximum link bandwidth
+
+   24:  Local Interface IPv6 Address
+
+   25:  Remote Interface IPv6 Address
+
+15.  References
+
+15.1.  Normative References
+
+   [RFC2119]  Bradner, S., "Key words for use in RFCs to Indicate
+              Requirement Levels", BCP 14, RFC 2119,
+              DOI 10.17487/RFC2119, March 1997,
+              <https://www.rfc-editor.org/info/rfc2119>.
+
+   [RFC2328]  Moy, J., "OSPF Version 2", STD 54, RFC 2328,
+              DOI 10.17487/RFC2328, April 1998,
+              <https://www.rfc-editor.org/info/rfc2328>.
+
+   [RFC3630]  Katz, D., Kompella, K., and D. Yeung, "Traffic Engineering
+              (TE) Extensions to OSPF Version 2", RFC 3630,
+              DOI 10.17487/RFC3630, September 2003,
+              <https://www.rfc-editor.org/info/rfc3630>.
+
+   [RFC4203]  Kompella, K., Ed. and Y. Rekhter, Ed., "OSPF Extensions in
+              Support of Generalized Multi-Protocol Label Switching
+              (GMPLS)", RFC 4203, DOI 10.17487/RFC4203, October 2005,
+              <https://www.rfc-editor.org/info/rfc4203>.
+
+   [RFC5329]  Ishiguro, K., Manral, V., Davey, A., and A. Lindem, Ed.,
+              "Traffic Engineering Extensions to OSPF Version 3",
+              RFC 5329, DOI 10.17487/RFC5329, September 2008,
+              <https://www.rfc-editor.org/info/rfc5329>.
+
+   [RFC5340]  Coltun, R., Ferguson, D., Moy, J., and A. Lindem, "OSPF
+              for IPv6", RFC 5340, DOI 10.17487/RFC5340, July 2008,
+              <https://www.rfc-editor.org/info/rfc5340>.
+
+   [RFC7308]  Osborne, E., "Extended Administrative Groups in MPLS
+              Traffic Engineering (MPLS-TE)", RFC 7308,
+              DOI 10.17487/RFC7308, July 2014,
+              <https://www.rfc-editor.org/info/rfc7308>.
+
+   [RFC7471]  Giacalone, S., Ward, D., Drake, J., Atlas, A., and S.
+              Previdi, "OSPF Traffic Engineering (TE) Metric
+              Extensions", RFC 7471, DOI 10.17487/RFC7471, March 2015,
+              <https://www.rfc-editor.org/info/rfc7471>.
+
+   [RFC7684]  Psenak, P., Gredler, H., Shakir, R., Henderickx, W.,
+              Tantsura, J., and A. Lindem, "OSPFv2 Prefix/Link Attribute
+              Advertisement", RFC 7684, DOI 10.17487/RFC7684, November
+              2015, <https://www.rfc-editor.org/info/rfc7684>.
+
+   [RFC8174]  Leiba, B., "Ambiguity of Uppercase vs Lowercase in RFC
+              2119 Key Words", BCP 14, RFC 8174, DOI 10.17487/RFC8174,
+              May 2017, <https://www.rfc-editor.org/info/rfc8174>.
+
+   [RFC8362]  Lindem, A., Roy, A., Goethals, D., Reddy Vallem, V., and
+              F. Baker, "OSPFv3 Link State Advertisement (LSA)
+              Extensibility", RFC 8362, DOI 10.17487/RFC8362, April
+              2018, <https://www.rfc-editor.org/info/rfc8362>.
+
+   [RFC8919]  Ginsberg, L., Psenak, P., Previdi, S., Henderickx, W., and
+              J. Drake, "IS-IS Application-Specific Link Attributes",
+              RFC 8919, DOI 10.17487/RFC8919, October 2020,
+              <https://www.rfc-editor.org/info/rfc8919>.
+
+15.2.  Informative References
+
+   [RFC3209]  Awduche, D., Berger, L., Gan, D., Li, T., Srinivasan, V.,
+              and G. Swallow, "RSVP-TE: Extensions to RSVP for LSP
+              Tunnels", RFC 3209, DOI 10.17487/RFC3209, December 2001,
+              <https://www.rfc-editor.org/info/rfc3209>.
+
+   [RFC4552]  Gupta, M. and N. Melam, "Authentication/Confidentiality
+              for OSPFv3", RFC 4552, DOI 10.17487/RFC4552, June 2006,
+              <https://www.rfc-editor.org/info/rfc4552>.
+
+   [RFC5286]  Atlas, A., Ed. and A. Zinin, Ed., "Basic Specification for
+              IP Fast Reroute: Loop-Free Alternates", RFC 5286,
+              DOI 10.17487/RFC5286, September 2008,
+              <https://www.rfc-editor.org/info/rfc5286>.
+
+   [RFC5709]  Bhatia, M., Manral, V., Fanto, M., White, R., Barnes, M.,
+              Li, T., and R. Atkinson, "OSPFv2 HMAC-SHA Cryptographic
+              Authentication", RFC 5709, DOI 10.17487/RFC5709, October
+              2009, <https://www.rfc-editor.org/info/rfc5709>.
+
+   [RFC5714]  Shand, M. and S. Bryant, "IP Fast Reroute Framework",
+              RFC 5714, DOI 10.17487/RFC5714, January 2010,
+              <https://www.rfc-editor.org/info/rfc5714>.
+
+   [RFC7166]  Bhatia, M., Manral, V., and A. Lindem, "Supporting
+              Authentication Trailer for OSPFv3", RFC 7166,
+              DOI 10.17487/RFC7166, March 2014,
+              <https://www.rfc-editor.org/info/rfc7166>.
+
+   [RFC7474]  Bhatia, M., Hartman, S., Zhang, D., and A. Lindem, Ed.,
+              "Security Extension for OSPFv2 When Using Manual Key
+              Management", RFC 7474, DOI 10.17487/RFC7474, April 2015,
+              <https://www.rfc-editor.org/info/rfc7474>.
+
+   [RFC7855]  Previdi, S., Ed., Filsfils, C., Ed., Decraene, B.,
+              Litkowski, S., Horneffer, M., and R. Shakir, "Source
+              Packet Routing in Networking (SPRING) Problem Statement
+              and Requirements", RFC 7855, DOI 10.17487/RFC7855, May
+              2016, <https://www.rfc-editor.org/info/rfc7855>.
+
+   [RFC8126]  Cotton, M., Leiba, B., and T. Narten, "Guidelines for
+              Writing an IANA Considerations Section in RFCs", BCP 26,
+              RFC 8126, DOI 10.17487/RFC8126, June 2017,
+              <https://www.rfc-editor.org/info/rfc8126>.
+
+   [SEGMENT-ROUTING]
+              Filsfils, C., Talaulikar, K., Voyer, D., Bogdanov, A., and
+              P. Mattes, "Segment Routing Policy Architecture", Work in
+              Progress, Internet-Draft, draft-ietf-spring-segment-
+              routing-policy-08, 8 July 2020,
+              <https://tools.ietf.org/html/draft-ietf-spring-segment-
+              routing-policy-08>.
+
+Acknowledgments
+
+   Thanks to Chris Bowers for his review and comments.
+
+   Thanks to Alvaro Retana for his detailed review and comments.
+
+Contributors
+
+   The following people contributed to the content of this document and
+   should be considered as coauthors:
+
+   Acee Lindem
+   Cisco Systems
+   301 Midenhall Way
+   Cary, NC 27513
+   United States of America
+
+   Email: acee@cisco.com
+
+
+   Ketan Talaulikar
+   Cisco Systems, Inc.
+   India
+
+   Email: ketant@cisco.com
+
+
+   Hannes Gredler
+   RtBrick Inc.
+   Austria
+
+   Email: hannes@rtbrick.com
+
+
+Authors' Addresses
+
+   Peter Psenak (editor)
+   Cisco Systems
+   Eurovea Centre, Central 3
+   Pribinova Street 10
+   81109 Bratislava
+   Slovakia
+
+   Email: ppsenak@cisco.com
+
+
+   Les Ginsberg
+   Cisco Systems
+   821 Alder Drive
+   Milpitas, CA 95035
+   United States of America
+
+   Email: ginsberg@cisco.com
+
+
+   Wim Henderickx
+   Nokia
+   Copernicuslaan 50
+   2018 94089 Antwerp
+   Belgium
+
+   Email: wim.henderickx@nokia.com
+
+
+   Jeff Tantsura
+   Apstra
+   United States of America
+
+   Email: jefftant.ietf@gmail.com
+
+
+   John Drake
+   Juniper Networks
+   1194 N. Mathilda Ave
+   Sunnyvale, California 94089
+   United States of America
+
+   Email: jdrake@juniper.net
+   
+github.com/S89219/-Copilot-aerospace-/files/10379475/404_Hero_2880x1440_Gradient.txt#
+
+
+
+
+
+
+Network Working Group                                         M. Mealling
+Request for Comments: 2915                        Network Solutions, Inc.
+Updates: 2168                                                   R. Daniel
+Category: Standards Track                                DATAFUSION, Inc.
+                                                           September 2000
+
+
+        The Naming Authority Pointer (NAPTR) DNS Resource Record
+
+Status of this Memo
+
+   This document specifies an Internet standards track protocol for the
+   Internet community, and requests discussion and suggestions for
+   improvements.  Please refer to the current edition of the "Internet
+   Official Protocol Standards" (STD 1) for the standardization state
+   and status of this protocol.  Distribution of this memo is unlimited.
+
+Copyright Notice
+
+   Copyright (C) The Internet Society (2000). All Rights Reserved.
+
+Abstract
+
+   This document describes a Domain Name System (DNS) resource record
+   which specifies a regular expression based rewrite rule that, when
+   applied to an existing string, will produce a new domain label or
+   Uniform Resource Identifier (URI).  Depending on the value of the
+   flags field of the resource record, the resulting domain label or URI
+   may be used in subsequent queries for the Naming Authority Pointer
+   (NAPTR) resource records (to delegate the name lookup) or as the
+   output of the entire process for which this system is used (a
+   resolution server for URI resolution, a service URI for ENUM style
+   e.164 number to URI mapping, etc).
+
+   This allows the DNS to be used to lookup services for a wide variety
+   of resource names (including URIs) which are not in domain name
+   syntax.  Reasons for doing this range from URN Resource Discovery
+   Systems to moving out-of-date services to new domains.
+
+   This document updates the portions of RFC 2168 specifically dealing
+   with the definition of the NAPTR records and how other, non-URI
+   specific applications, might use NAPTR.
+
+
+
+
+
+
+
+
+
+Mealling & Daniel           Standards Track                     [Page 1]
+
+RFC 2915                      NAPTR DNS RR                September 2000
+
+
+Table of Contents
+
+   1.  Introduction . . . . . . . . . . . . . . . . . . . . . . . .   2
+   2.  NAPTR RR Format  . . . . . . . . . . . . . . . . . . . . . .   3
+   3.  Substitution Expression Grammar  . . . . . . . . . . . . . .   7
+   4.  The Basic NAPTR Algorithm  . . . . . . . . . . . . . . . . .   8
+   5.  Concerning How NAPTR Uses SRV Records  . . . . . . . . . . .   9
+   6.  Application Specifications . . . . . . . . . . . . . . . . .  10
+   7.  Examples . . . . . . . . . . . . . . . . . . . . . . . . . .  10
+   7.1 Example 1  . . . . . . . . . . . . . . . . . . . . . . . . .  10
+   7.2 Example 2  . . . . . . . . . . . . . . . . . . . . . . . . .  12
+   7.3 Example 3  . . . . . . . . . . . . . . . . . . . . . . . . .  13
+   8.  DNS Packet Format  . . . . . . . . . . . . . . . . . . . . .  13
+   9.  Master File Format . . . . . . . . . . . . . . . . . . . . .  14
+   10. Advice for DNS Administrators  . . . . . . . . . . . . . . .  14
+   11. Notes  . . . . . . . . . . . . . . . . . . . . . . . . . . .  15
+   12. IANA Considerations  . . . . . . . . . . . . . . . . . . . .  15
+   13. Security Considerations  . . . . . . . . . . . . . . . . . .  15
+   14. Acknowledgments  . . . . . . . . . . . . . . . . . . . . . .  16
+       References . . . . . . . . . . . . . . . . . . . . . . . . .  16
+       Authors' Addresses . . . . . . . . . . . . . . . . . . . . .  17
+       Full Copyright Statement . . . . . . . . . . . . . . . . . .  18
+
+1. Introduction
+
+   This RR was originally produced by the URN Working Group [3] as a way
+   to encode rule-sets in DNS so that the delegated sections of a URI
+   could be decomposed in such a way that they could be changed and re-
+   delegated over time.  The result was a Resource Record that included
+   a regular expression that would be used by a client program to
+   rewrite a string into a domain name.  Regular expressions were chosen
+   for their compactness to expressivity ratio allowing for a great deal
+   of information to be encoded in a rather small DNS packet.
+
+   The function of rewriting a string according to the rules in a record
+   has usefulness in several different applications.  This document
+   defines the basic assumptions to which all of those applications must
+   adhere to.  It does not define the reasons the rewrite is used, what
+   the expected outcomes are, or what they are used for.  Those are
+   specified by applications that define how they use the NAPTR record
+   and algorithms within their contexts.
+
+   Flags and other fields are also specified in the RR to control the
+   rewrite procedure in various ways or to provide information on how to
+   communicate with the host at the domain name that was the result of
+   the rewrite.
+
+
+
+
+
+Mealling & Daniel           Standards Track                     [Page 2]
+
+RFC 2915                      NAPTR DNS RR                September 2000
+
+
+   The final result is a RR that has several fields that interact in a
+   non-trivial but implementable way.  This document specifies those
+   fields and their values.
+
+   This document does not define applications that utilizes this rewrite
+   functionality. Instead it specifies just the mechanics of how it is
+   done.  Why its done, what the rules concerning the inputs, and the
+   types of rules used are reserved for other documents that fully
+   specify a particular application.  This separation is due to several
+   different applications all wanting to take advantage of the rewrite
+   rule lookup process.  Each one has vastly different reasons for why
+   and how it uses the service, thus requiring that the definition of
+   the service be generic.
+
+      The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL
+      NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL"
+      in this document are to be interpreted as described in RFC 2119.
+
+      All references to Uniform Resource Identifiers in this document
+      adhere to the 'absoluteURI' production of the "Collected ABNF"
+      found in RFC 2396 [9].  Specifically, the semantics of URI
+      References do not apply since the concept of a Base makes no sense
+      here.
+
+2. NAPTR RR Format
+
+   The format of the NAPTR RR is given below.  The DNS type code [1] for
+   NAPTR is 35.
+
+   Domain TTL Class Type Order Preference Flags Service Regexp
+   Replacement
+
+   Domain
+      The domain name to which this resource record refers.  This is the
+      'key' for this entry in the rule database.  This value will either
+      be the first well known key (<something>.uri.arpa for example) or
+      a new key that is the output of a replacement or regexp rewrite.
+      Beyond this, it has the standard DNS requirements [1].
+
+   TTL
+      Standard DNS meaning [1].
+
+   Class
+      Standard DNS meaning [1].
+
+   Type
+      The Type Code [1] for NAPTR is 35.
+
+
+
+
+Mealling & Daniel           Standards Track                     [Page 3]
+
+RFC 2915                      NAPTR DNS RR                September 2000
+
+
+   Order
+      A 16-bit unsigned integer specifying the order in which the NAPTR
+      records MUST be processed to ensure the correct ordering of
+      rules.  Low numbers are processed before high numbers, and once a
+      NAPTR is found whose rule "matches" the target, the client MUST
+      NOT consider any NAPTRs with a higher value for order (except as
+      noted below for the Flags field).
+
+   Preference
+      A 16-bit unsigned integer that specifies the order in which NAPTR
+      records with equal "order" values SHOULD be processed, low
+      numbers being processed before high numbers.  This is similar to
+      the preference field in an MX record, and is used so domain
+      administrators can direct clients towards more capable hosts or
+      lighter weight protocols.  A client MAY look at records with
+      higher preference values if it has a good reason to do so such as
+      not understanding the preferred protocol or service.
+
+      The important difference between Order and Preference is that
+      once a match is found the client MUST NOT consider records with a
+      different Order but they MAY process records with the same Order
+      but different Preferences.  I.e., Preference is used to give weight
+      to rules that are considered the same from an authority
+      standpoint but not from a simple load balancing standpoint.
+
+   Flags
+      A <character-string> containing flags to control aspects of the
+      rewriting and interpretation of the fields in the record.  Flags
+      are single characters from the set [A-Z0-9].  The case of the
+      alphabetic characters is not significant.
+
+      At this time only four flags, "S", "A", "U", and "P", are
+      defined.  The "S", "A" and "U" flags denote a terminal lookup.
+      This means that this NAPTR record is the last one and that the
+      flag determines what the next stage should be.  The "S" flag
+      means that the next lookup should be for SRV records [4].  See
+      Section 5 for additional information on how NAPTR uses the SRV
+      record type.  "A" means that the next lookup should be for either
+      an A, AAAA, or A6 record.  The "U" flag means that the next step
+      is not a DNS lookup but that the output of the Regexp field is an
+      URI that adheres to the 'absoluteURI' production found in the
+      ABNF of RFC 2396 [9].  Since there may be applications that use
+      NAPTR to also lookup aspects of URIs, implementors should be
+      aware that this may cause loop conditions and should act
+      accordingly.
+
+
+
+
+
+
+Mealling & Daniel           Standards Track                     [Page 4]
+
+RFC 2915                      NAPTR DNS RR                September 2000
+
+
+      The "P" flag says that the remainder of the application side
+      algorithm shall be carried out in a Protocol-specific fashion.
+      The new set of rules is identified by the Protocol specified in
+      the Services field.  The record that contains the 'P' flag is the
+      last record that is interpreted by the rules specified in this
+      document.  The new rules are dependent on the application for
+      which they are being used and the protocol specified.  For
+      example, if the application is a URI RDS and the protocol is WIRE
+      then the new set of rules are governed by the algorithms
+      surrounding the WIRE HTTP specification and not this document.
+
+      The remaining alphabetic flags are reserved for future versions
+      of the NAPTR specification.  The numeric flags may be used for
+      local experimentation.  The S, A, U and P flags are all mutually
+      exclusive, and resolution libraries MAY signal an error if more
+      than one is given.  (Experimental code and code for assisting in
+      the creation of NAPTRs would be more likely to signal such an
+      error than a client such as a browser).  It is anticipated that
+      multiple flags will be allowed in the future, so implementers
+      MUST NOT assume that the flags field can only contain 0 or 1
+      characters.  Finally, if a client encounters a record with an
+      unknown flag, it MUST ignore it and move to the next record.  This
+      test takes precedence even over the "order" field.  Since flags
+      can control the interpretation placed on fields, a novel flag
+      might change the interpretation of the regexp and/or replacement
+      fields such that it is impossible to determine if a record
+      matched a given target.
+
+      The "S", "A", and "U"  flags are called 'terminal' flags since
+      they halt the looping rewrite algorithm.  If those flags are not
+      present, clients may assume that another NAPTR RR exists at the
+      domain name produced by the current rewrite rule.  Since the "P"
+      flag specifies a new algorithm, it may or may not be 'terminal'.
+      Thus, the client cannot assume that another NAPTR exists since
+      this case is determined elsewhere.
+
+      DNS servers MAY interpret these flags and values and use that
+      information to include appropriate SRV and A,AAAA, or A6 records
+      in the additional information portion of the DNS packet.  Clients
+      are encouraged to check for additional information but are not
+      required to do so.
+
+   Service
+      Specifies the service(s) available down this rewrite path.  It may
+      also specify the particular protocol that is used to talk with a
+      service.  A protocol MUST be specified if the flags field states
+      that the NAPTR is terminal.  If a protocol is specified, but the
+      flags field does not state that the NAPTR is terminal, the next
+
+
+
+Mealling & Daniel           Standards Track                     [Page 5]
+
+RFC 2915                      NAPTR DNS RR                September 2000
+
+
+      lookup MUST be for a NAPTR.  The client MAY choose not to perform
+      the next lookup if the protocol is unknown, but that behavior
+      MUST NOT be relied upon.
+
+      The service field may take any of the values below (using the
+      Augmented BNF of RFC 2234 [5]):
+
+                 service_field = [ [protocol] *("+" rs)]
+                 protocol      = ALPHA *31ALPHANUM
+                 rs            = ALPHA *31ALPHANUM
+                 ; The protocol and rs fields are limited to 32
+                 ; characters and must start with an alphabetic.
+
+      For example, an optional protocol specification followed by 0 or
+      more resolution services.  Each resolution service is indicated by
+      an initial '+' character.
+
+      Note that the empty string is also a valid service field.  This
+      will typically be seen at the beginning of a series of rules,
+      when it is impossible to know what services and protocols will be
+      offered by a particular service.
+
+      The actual format of the service request and response will be
+      determined by the resolution protocol, and is the subject for
+      other documents.  Protocols need not offer all services.  The
+      labels for service requests shall be formed from the set of
+      characters [A-Z0-9].  The case of the alphabetic characters is
+      not significant.
+
+      The list of "valid" protocols for any given NAPTR record is any
+      protocol that implements some or all of the services defined for
+      a NAPTR application.  Currently, THTTP [6] is the only protocol
+      that is known to make that claim at the time of publication.  Any
+      other protocol that is to be used must have documentation
+      specifying:
+
+      *  how it implements the services of the application
+
+      *  how it is to appear in the NAPTR record (i.e., the string id
+         of the protocol)
+
+      The list of valid Resolution Services is defined by the documents
+      that specify individual NAPTR based applications.
+
+      It is worth noting that the interpretation of this field is
+      subject to being changed by new flags, and that the current
+      specification is oriented towards telling clients how to talk
+      with a URN resolver.
+
+
+
+Mealling & Daniel           Standards Track                     [Page 6]
+
+RFC 2915                      NAPTR DNS RR                September 2000
+
+
+   Regexp
+      A STRING containing a substitution expression that is applied to
+      the original string held by the client in order to construct the
+      next domain name to lookup.  The grammar of the substitution
+      expression is given in the next section.
+
+      The regular expressions MUST NOT be used in a cumulative fashion,
+      that is, they should only be applied to the original string held
+      by the client, never to the domain name produced by a previous
+      NAPTR rewrite.  The latter is tempting in some applications but
+      experience has shown such use to be extremely fault sensitive,
+      very error prone, and extremely difficult to debug.
+
+   Replacement
+      The next NAME to query for NAPTR, SRV, or address records
+      depending on the value of the flags field.  This MUST be a fully
+      qualified domain-name. Unless and until permitted by future
+      standards action, name compression is not to be used for this
+      field.
+
+3. Substitution Expression Grammar
+
+   The content of the regexp field is a substitution expression.  True
+   sed(1) and Perl style substitution expressions are not appropriate
+   for use in this application for a variety of reasons stemming from
+   internationalization requirements and backref limitations, therefore
+   the contents of the regexp field MUST follow the grammar below:
+
+subst_expr   = delim-char  ere  delim-char  repl  delim-char  *flags
+delim-char   = "/" / "!" / ... <Any non-digit or non-flag character
+               other than backslash '\'. All occurances of a delim_char
+               in a subst_expr must be the same character.>
+ere          = POSIX Extended Regular Expression
+repl         = 1 * ( OCTET /  backref )
+backref      = "\" 1POS_DIGIT
+flags        = "i"
+POS_DIGIT    = %x31-39                 ; 0 is not an allowed backref
+
+   The definition of a POSIX Extended Regular Expression can be found in
+   [8], section 2.8.4.
+
+   The result of applying the substitution expression to the original
+   URI MUST result in either a string that obeys the syntax for DNS
+   domain-names [1] or a URI [9] if the Flags field contains a 'u'.
+   Since it is possible for the regexp field to be improperly specified,
+   such that a non-conforming domain-name can be constructed, client
+   software SHOULD verify that the result is a legal DNS domain-name
+   before making queries on it.
+
+
+
+Mealling & Daniel           Standards Track                     [Page 7]
+
+RFC 2915                      NAPTR DNS RR                September 2000
+
+
+   Backref expressions in the repl portion of the substitution
+   expression are replaced by the (possibly empty) string of characters
+   enclosed by '(' and ')' in the ERE portion of the substitution
+   expression. N is a single digit from 1 through 9, inclusive.  It
+   specifies the N'th backref expression, the one that begins with the
+   N'th '(' and continues to the matching ')'.  For example, the ERE
+
+                            (A(B(C)DE)(F)G)
+
+         has backref expressions:
+
+                            \1  = ABCDEFG
+                            \2  = BCDE
+                            \3  = C
+                            \4  = F
+                            \5..\9  = error - no matching subexpression
+
+   The "i" flag indicates that the ERE matching SHALL be performed in a
+   case-insensitive fashion. Furthermore, any backref replacements MAY
+   be normalized to lower case when the "i" flag is given.
+
+   The first character in the substitution expression shall be used as
+   the character that delimits the components of the substitution
+   expression.  There must be exactly three non-escaped occurrences of
+   the delimiter character in a substitution expression.  Since escaped
+   occurrences of the delimiter character will be interpreted as
+   occurrences of that character, digits MUST NOT be used as delimiters.
+   Backrefs would be confused with literal digits were this allowed.
+   Similarly, if flags are specified in the substitution expression, the
+   delimiter character must not also be a flag character.
+
+4. The Basic NAPTR Algorithm
+
+   The behavior and meaning of the flags and services assume an
+   algorithm where the output of one rewrite is a new key that points to
+   another rule.  This looping algorithm allows NAPTR records to
+   incrementally specify a complete rule.  These incremental rules can
+   be delegated which allows other entities to specify rules so that one
+   entity does not need to understand _all_ rules.
+
+   The algorithm starts with a string and some known key (domain).
+   NAPTR records for this key are retrieved, those with unknown Flags or
+   inappropriate Services are discarded and the remaining records are
+   sorted by their Order field.  Within each value of Order, the records
+   are further sorted by the Preferences field.
+
+   The records are examined in sorted order until a matching record is
+   found.  A record is considered a match iff:
+
+
+
+Mealling & Daniel           Standards Track                     [Page 8]
+
+RFC 2915                      NAPTR DNS RR                September 2000
+
+
+   o  it has a Replacement field value instead of a Regexp field value.
+
+   o  or the Regexp field matches the string held by the client.
+
+   The first match MUST be the match that is used.  Once a match is
+   found, the Services field is examined for whether or not this rule
+   advances toward the desired result.  If so, the rule is applied to
+   the target string.  If not, the process halts.  The domain that
+   results from the regular expression is then used as the domain of the
+   next loop through the NAPTR algorithm.  Note that the same target
+   string is used throughout the algorithm.
+
+   This looping is extremely important since it is the method by which
+   complex rules are broken down into manageable delegated chunks.  The
+   flags fields simply determine at which point the looping should stop
+   (or other specialized behavior).
+
+   Since flags are valid at any level of the algorithm, the degenerative
+   case is to never loop but to look up the NAPTR and then stop.  In
+   many specialized cases this is all that is needed.  Implementors
+   should be aware that the degenerative case should not become the
+   common case.
+
+5. Concerning How NAPTR Uses SRV Records
+
+   When the SRV record type was originally specified it assumed that the
+   client did not know the specific domain-name before hand.  The client
+   would construct a domain-name more in the form of a question than the
+   usual case of knowing ahead of time that the domain-name should
+   exist.  I.e., if the client wants to know if there is a TCP based
+   HTTP server running at a particular domain, the client would
+   construct the domain-name _http._tcp.somedomain.com and ask the DNS
+   if that records exists. The underscores are used to avoid collisions
+   with potentially 'real' domain-names.
+
+   In the case of NAPTR, the actual domain-name is specified by the
+   various fields in the NAPTR record.  In this case the client isn't
+   asking a question but is instead attempting to get at information
+   that it has been told exists in an SRV record at that particular
+   domain-name.  While this usage of SRV is slightly different than the
+   SRV authors originally intended it does not break any of the
+   assumptions concerning what SRV contains.  Also, since the NAPTR
+   explicitly spells out the domain-name for which an SRV exists, that
+   domain-name MUST be used in SRV queries with NO transformations.  Any
+   given NAPTR record may result in a domain-name to be used for SRV
+   queries that may or may not contain the SRV standardized underscore
+
+
+
+
+
+Mealling & Daniel           Standards Track                     [Page 9]
+
+RFC 2915                      NAPTR DNS RR                September 2000
+
+
+   characters.  NAPTR applications that make use of SRV MUST NOT attempt
+   to understand these domains or use them according to how the SRV
+   specification structures its query domains.
+
+6. Application Specifications
+
+   It should be noted that the NAPTR algorithm is the basic assumption
+   about how NAPTR works.  The reasons for the rewrite and the expected
+   output and its use are specified by documents that define what
+   applications the NAPTR record and algorithm are used for.  Any
+   document that defines such an application must define the following:
+
+   o  The first known domain-name or how to build it
+
+   o  The valid Services and Protocols
+
+   o  What the expected use is for the output of the last rewrite
+
+   o  The validity and/or behavior of any 'P' flag protocols.
+
+   o  The general semantics surrounding why and how NAPTR and its
+      algorithm are being used.
+
+7. Examples
+
+   NOTE: These are examples only.  They are taken from ongoing work and
+   may not represent the end result of that work. They are here for
+   pedagogical reasons only.
+
+7.1 Example 1
+
+   NAPTR was originally specified for use with the a Uniform Resource
+   Name Resolver Discovery System.  This example details how a
+   particular URN would use the NAPTR record to find a resolver service.
+
+   Consider a URN namespace based on MIME Content-Ids.  The URN might
+   look like this:
+
+      urn:cid:39CB83F7.A8450130@fake.gatech.edu
+
+   (Note that this example is chosen for pedagogical purposes, and does
+   not conform to the CID URL scheme.)
+
+   The first step in the resolution process is to find out about the CID
+   namespace.  The namespace identifier [3], 'cid', is extracted from
+   the URN, prepended to urn.arpa. 'cid.urn.arpa' then becomes the first
+   'known' key in the NAPTR algorithm.  The NAPTR records for
+   cid.urn.arpa looked up and return a single record:
+
+
+
+Mealling & Daniel           Standards Track                    [Page 10]
+
+RFC 2915                      NAPTR DNS RR                September 2000
+
+
+   cid.urn.arpa.
+   ;;       order pref flags service        regexp           replacement
+   IN NAPTR 100   10   ""  ""  "/urn:cid:.+@([^\.]+\.)(.*)$/\2/i"    .
+
+   There is only one NAPTR response, so ordering the responses is not a
+   problem.  The replacement field is empty, so the pattern provided in
+   the regexp field is used.  We apply that regexp to the entire URN to
+   see if it matches, which it does.  The \2 part of the substitution
+   expression returns the string "gatech.edu".  Since the flags field
+   does not contain "s" or "a", the lookup is not terminal and our next
+   probe to DNS is for more NAPTR records where the new domain is '
+   gatech.edu' and the string is the same string as before.
+
+   Note that the rule does not extract the full domain name from the
+   CID, instead it assumes the CID comes from a host and extracts its
+   domain.  While all hosts, such as mordred, could have their very own
+   NAPTR, maintaining those records for all the machines at a site as
+   large as Georgia Tech would be an intolerable burden.  Wildcards are
+   not appropriate here since they only return results when there is no
+   exactly matching names already in the system.
+
+   The record returned from the query on "gatech.edu" might look like:
+
+;;       order pref flags service           regexp  replacement
+ IN NAPTR 100  50  "s"  "z3950+I2L+I2C"     ""  _z3950._tcp.gatech.edu.
+ IN NAPTR 100  50  "s"  "rcds+I2C"          ""  _rcds._udp.gatech.edu.
+ IN NAPTR 100  50  "s"  "http+I2L+I2C+I2R"  ""  _http._tcp.gatech.edu.
+
+   Continuing with the example, note that the values of the order and
+   preference fields are equal in all records, so the client is free to
+   pick any record.  The flags field tells us that these are the last
+   NAPTR patterns we should see, and after the rewrite (a simple
+   replacement in this case) we should look up SRV records to get
+   information on the hosts that can provide the necessary service.
+
+   Assuming we prefer the Z39.50 protocol, our lookup might return:
+
+ ;;                        Pref Weight   Port Target
+ _z3950._tcp.gatech.edu. IN SRV 0    0      1000 z3950.gatech.edu.
+                         IN SRV 0    0      1000 z3950.cc.gatech.edu.
+                         IN SRV 0    0      1000 z3950.uga.edu.
+
+   telling us three hosts that could actually do the resolution, and
+   giving us the port we should use to talk to their Z39.50 server.
+
+   Recall that the regular expression used \2 to extract a domain name
+   from the CID, and \. for matching the literal '.' characters
+   separating the domain name components. Since '\' is the escape
+
+
+
+Mealling & Daniel           Standards Track                    [Page 11]
+
+RFC 2915                      NAPTR DNS RR                September 2000
+
+
+   character, literal occurances of a backslash must be escaped by
+   another backslash.  For the case of the cid.urn.arpa record above,
+   the regular expression entered into the master file should be
+   "/urn:cid:.+@([^\\.]+\\.)(.*)$/\\2/i".  When the client code actually
+   receives the record, the pattern will have been converted to
+   "/urn:cid:.+@([^\.]+\.)(.*)$/\2/i".
+
+7.2 Example 2
+
+   Even if URN systems were in place now, there would still be a
+   tremendous number of URLs.  It should be possible to develop a URN
+   resolution system that can also provide location independence for
+   those URLs.  This is related to the requirement that URNs be able to
+   grandfather in names from other naming systems, such as ISO Formal
+   Public Identifiers, Library of Congress Call Numbers, ISBNs, ISSNs,
+   etc.
+
+   The NAPTR RR could also be used for URLs that have already been
+   assigned.  Assume we have the URL for a very popular piece of
+   software that the publisher wishes to mirror at multiple sites around
+   the world:
+
+   Using the rules specified for this application we extract the prefix,
+   "http", and lookup NAPTR records for http.uri.arpa.  This might
+   return a record of the form
+
+     http.uri.arpa. IN NAPTR
+     ;;  order   pref flags service      regexp             replacement
+          100     90   ""      ""   "!http://([^/:]+)!\1!i"       .
+
+   This expression returns everything after the first double slash and
+   before the next slash or colon.  (We use the '!' character to delimit
+   the parts of the substitution expression.  Otherwise we would have to
+   use backslashes to escape the forward slashes and would have a regexp
+   in the zone file that looked like "/http:\\/\\/([^\\/:]+)/\\1/i".).
+
+   Applying this pattern to the URL extracts "www.foo.com".  Looking up
+   NAPTR records for that might return:
+
+     www.foo.com.
+     ;;       order pref flags   service  regexp     replacement
+      IN NAPTR 100  100  "s"   "http+I2R"   ""    _http._tcp.foo.com.
+      IN NAPTR 100  100  "s"   "ftp+I2R"    ""    _ftp._tcp.foo.com.
+
+   Looking up SRV records for http.tcp.foo.com would return information
+   on the hosts that foo.com has designated to be its mirror sites.  The
+   client can then pick one for the user.
+
+
+
+
+Mealling & Daniel           Standards Track                    [Page 12]
+
+RFC 2915                      NAPTR DNS RR                September 2000
+
+
+7.3 Example 3
+
+   A non-URI example is the ENUM application which uses a NAPTR record
+   to map an e.164 telephone number to a URI.  In order to convert the
+   phone number to a domain name for the first iteration all characters
+   other than digits are removed from the the telephone number, the
+   entire number is inverted, periods are put between each digit and the
+   string ".e164.arpa" is put on the left-hand side.  For example, the
+   E.164 phone number "+1-770-555-1212" converted to a domain-name it
+   would be "2.1.2.1.5.5.5.0.7.7.1.e164.arpa."
+
+   For this example telephone number we might get back the following
+   NAPTR records:
+
+$ORIGIN 2.1.2.1.5.5.5.0.7.7.1.e164.arpa.
+ IN NAPTR 100 10 "u" "sip+E2U"  "!^.*$!sip:information@tele2.se!"     .
+ IN NAPTR 102 10 "u" "mailto+E2U" "!^.*$!mailto:information@tele2.se!"  .
+
+   This application uses the same 'u' flag as the URI Resolution
+   application. This flag states that the Rule is terminal and that the
+   output is a URI which contains the information needed to contact that
+   telephone service.  ENUM also uses the same format for its Service
+   field except that it defines the 'E2U' service instead of the 'I2*'
+   services that URI resolution uses.  The example above states that the
+   available protocols used to access that telephone's service are
+   either the Session Initiation Protocol or SMTP mail.
+
+8. DNS Packet Format
+
+         The packet format for the NAPTR record is:
+
+                                          1  1  1  1  1  1
+            0  1  2  3  4  5  6  7  8  9  0  1  2  3  4  5
+          +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+          |                     ORDER                     |
+          +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+          |                   PREFERENCE                  |
+          +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+          /                     FLAGS                     /
+          +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+          /                   SERVICES                    /
+          +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+          /                    REGEXP                     /
+          +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+          /                  REPLACEMENT                  /
+          /                                               /
+          +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+
+
+
+
+Mealling & Daniel           Standards Track                    [Page 13]
+
+RFC 2915                      NAPTR DNS RR                September 2000
+
+
+    where:
+
+   FLAGS A <character-string> which contains various flags.
+
+   SERVICES A <character-string> which contains protocol and service
+      identifiers.
+
+   REGEXP A <character-string> which contains a regular expression.
+
+   REPLACEMENT A <domain-name> which specifies the new value in the
+      case where the regular expression is a simple replacement
+      operation.
+
+   <character-string> and <domain-name> as used here are defined in
+   RFC1035 [1].
+
+9. Master File Format
+
+   The master file format follows the standard rules in RFC-1035 [1].
+   Order and preference, being 16-bit unsigned integers, shall be an
+   integer between 0 and 65535.  The Flags and Services and Regexp
+   fields are all quoted <character-string>s.  Since the Regexp field
+   can contain numerous backslashes and thus should be treated with
+   care.  See Section 10 for how to correctly enter and escape the
+   regular expression.
+
+10. Advice for DNS Administrators
+
+   Beware of regular expressions.  Not only are they difficult to get
+   correct on their own, but there is the previously mentioned
+   interaction with DNS.  Any backslashes in a regexp must be entered
+   twice in a zone file in order to appear once in a query response.
+   More seriously, the need for double backslashes has probably not been
+   tested by all implementors of DNS servers.
+
+   The "a" flag allows the next lookup to be for address records (A,
+   AAAA, A6) rather than SRV records.  Since there is no place for a
+   port specification in the NAPTR record, when the "A" flag is used the
+   specified protocol must be running on its default port.
+
+   The URN Syntax draft defines a canonical form for each URN, which
+   requires %encoding characters outside a limited repertoire.  The
+   regular expressions MUST be written to operate on that canonical
+   form.  Since international character sets will end up with extensive
+   use of %encoded characters, regular expressions operating on them
+   will be essentially impossible to read or write by hand.
+
+
+
+
+
+Mealling & Daniel           Standards Track                    [Page 14]
+
+RFC 2915                      NAPTR DNS RR                September 2000
+
+
+11. Notes
+
+   o  A client MUST process multiple NAPTR records in the order
+      specified by the "order" field, it MUST NOT simply use the first
+      record that provides a known protocol and service combination.
+
+   o  When multiple RRs have the same "order" and all other criteria
+      being equal, the client should use the value of the preference
+      field to select the next NAPTR to consider.  However, because it
+      will often be the case where preferred protocols or services
+      exist, clients may use this additional criteria to sort
+      the records.
+
+   o  If the lookup after a rewrite fails, clients are strongly
+      encouraged to report a failure, rather than backing up to pursue
+      other rewrite paths.
+
+   o  Note that SRV RRs impose additional requirements on clients.
+
+12. IANA Considerations
+
+   The only registration function that impacts the IANA is for the
+   values that are standardized for the Services and Flags fields.  To
+   extend the valid values of the Flags field beyond what is specified
+   in this document requires a published specification that is approved
+   by the IESG.
+
+   The values for the Services field will be determined by the
+   application that makes use of the NAPTR record.  Those values must be
+   specified in a published specification and approved by the IESG.
+
+13. Security Considerations
+
+   The interactions with DNSSEC are currently being studied.  It is
+   expected that NAPTR records will be signed with SIG records once the
+   DNSSEC work is deployed.
+
+   The rewrite rules make identifiers from other namespaces subject to
+   the same attacks as normal domain names.  Since they have not been
+   easily resolvable before, this may or may not be considered a
+   problem.
+
+   Regular expressions should be checked for sanity, not blindly passed
+   to something like PERL.
+
+   This document has discussed a way of locating a service, but has not
+   discussed any detail of how the communication with that service takes
+   place.  There are significant security considerations attached to the
+
+
+
+Mealling & Daniel           Standards Track                    [Page 15]
+
+RFC 2915                      NAPTR DNS RR                September 2000
+
+
+   communication with a service.  Those considerations are outside the
+   scope of this document, and must be addressed by the specifications
+   for particular communication protocols.
+
+14. Acknowledgments
+
+   The editors would like to thank Keith Moore for all his consultations
+   during the development of this memo.  We would also like to thank
+   Paul Vixie for his assistance in debugging our implementation, and
+   his answers on our questions.  Finally, we would like to acknowledge
+   our enormous intellectual debt to the participants in the Knoxville
+   series of meetings, as well as to the participants in the URI and URN
+   working groups.
+
+References
+
+   [1]  Mockapetris, P., "Domain names - implementation and
+        specification", STD 13, RFC 1035, November 1987.
+
+   [2]  Mockapetris, P., "Domain names - concepts and facilities", STD
+        13, RFC 1034, November 1987.
+
+   [3]  Moats, R., "URN Syntax", RFC 2141, May 1997.
+
+   [4]  Gulbrandsen, A., Vixie, P. and L. Esibov, "A DNS RR for
+        specifying the location of services (DNS SRV)", RFC 2782,
+        February 2000.
+
+   [5]  Crocker, D., "Augmented BNF for Syntax Specifications: ABNF",
+        RFC 2234, November 1997.
+
+   [6]  Daniel, R., "A Trivial Convention for using HTTP in URN
+        Resolution", RFC 2169, June 1997.
+
+   [7]  Daniel, R. and M. Mealling, "Resolution of Uniform Resource
+        Identifiers using the Domain Name System", RFC 2168, June 1997.
+
+   [8]  IEEE, "IEEE Standard for Information Technology - Portable
+        Operating System Interface (POSIX) - Part 2: Shell and Utilities
+        (Vol. 1)", IEEE Std 1003.2-1992, January 1993.
+
+   [9]  Berners-Lee, T., Fielding, R.T. and L. Masinter, "Uniform
+        Resource Identifiers (URI): Generic Syntax", RFC 2396, August
+        1998.
+
+
+
+
+
+
+
+Mealling & Daniel           Standards Track                    [Page 16]
+
+RFC 2915                      NAPTR DNS RR                September 2000
+
+
+Authors' Addresses
+
+   Michael Mealling
+   Network Solutions, Inc.
+   505 Huntmar Park Drive
+   Herndon, VA  22070
+   US
+
+   Phone: +1 770 921 2251
+   EMail: michaelm@netsol.com
+   URI:   http://www.netsol.com
+
+
+   Ron Daniel
+   DATAFUSION, Inc.
+   139 Townsend Street, Ste. 100
+   San Francisco, CA  94107
+   US
+
+   Phone: +1 415 222 0100
+   EMail: rdaniel@datafusion.net
+   URI:   http://www.datafusion.net
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Mealling & Daniel           Standards Track                    [Page 17]
+
+RFC 2915                      NAPTR DNS RR                September 2000
+
+
+Full Copyright Statement
+
+   Copyright (C) The Internet Society (2000).  All Rights Reserved.
+
+   This document and translations of it may be copied and furnished to
+   others, and derivative works that comment on or otherwise explain it
+   or assist in its implementation may be prepared, copied, published
+   and distributed, in whole or in part, without restriction of any
+   kind, provided that the above copyright notice and this paragraph are
+   included on all such copies and derivative works.  However, this
+   document itself may not be modified in any way, such as by removing
+   the copyright notice or references to the Internet Society or other
+   Internet organizations, except as needed for the purpose of
+   developing Internet standards in which case the procedures for
+   copyrights defined in the Internet Standards process must be
+   followed, or as required to translate it into languages other than
+   English.
+
+   The limited permissions granted above are perpetual and will not be
+   revoked by the Internet Society or its successors or assigns.
+
+   This document and the information contained herein is provided on an
+   "AS IS" basis and THE INTERNET SOCIETY AND THE INTERNET ENGINEERING
+   TASK FORCE DISCLAIMS ALL WARRANTIES, EXPRESS OR IMPLIED, INCLUDING
+   BUT NOT LIMITED TO ANY WARRANTY THAT THE USE OF THE INFORMATION
+   HEREIN WILL NOT INFRINGE ANY RIGHTS OR ANY IMPLIED WARRANTIES OF
+   MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
+
+Acknowledgement
+
+   Funding for the RFC Editor function is currently provided by the
+   Internet Society.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Mealling & Daniel           Standards Track                    [Page 18]09
+
+
+
+
+
+
+Network Working Group                                          B. Kaliski
+Request for Comments: 2315                         RSA Laboratories, East
+Category: Informational                                        March 1998
+
+
+                 PKCS #7: Cryptographic Message Syntax
+                              Version 1.5
+
+Status of this Memo
+
+   This memo provides information for the Internet community.  It does
+   not specify an Internet standard of any kind.  Distribution of this
+   memo is unlimited.
+
+Copyright Notice
+
+   Copyright (C) The Internet Society (1998).  All Rights Reserved.
+
+Overview
+
+   This document describes a general syntax for data that may have
+   cryptography applied to it, such as digital signatures and digital
+   envelopes. The syntax admits recursion, so that, for example, one
+   envelope can be nested inside another, or one party can sign some
+   previously enveloped digital data.  It also allows arbitrary
+   attributes, such as signing time, to be authenticated along with the
+   content of a message, and provides for other attributes such as
+   countersignatures to be associated with a signature. A degenerate
+   case of the syntax provides a means for disseminating certificates
+   and certificate-revocation lists.
+
+1. Scope
+
+   This document is compatible with Privacy-Enhanced Mail (PEM) in that
+   signed-data and signed-and-enveloped-data content, constructed in a
+   PEM-compatible mode, can be converted into PEM messages without any
+   cryptographic operations. PEM messages can similarly be converted
+   into the signed-data and signed-and-enveloped data content types.
+
+   This document can support a variety of architectures for
+   certificate-based key management, such as the one proposed for
+   Privacy-Enhanced Mail in RFC 1422. Architectural decisions such as
+   what certificate issuers are considered "top-level," what entities
+   certificate issuers are authorized to certify, what distinguished
+   names are considered acceptable, and what policies certificate
+   issuers must follow (such as signing only with secure hardware, or
+   requiring entities to present specific forms of identification) are
+   left outside the document.
+
+
+
+Kaliski                      Informational                      [Page 1]
+
+RFC 2315          PKCS #7: Crytographic Message Syntax        March 1998
+
+
+   The values produced according to this document are intended to be
+   BER-encoded, which means that the values would typically be
+   represented as octet strings. While many systems are capable of
+   transmitting arbitrary octet strings reliably, it is well known that
+   many electronic-mail systems are not. This document does not address
+   mechanisms for encoding octet strings as (say) strings of ASCII
+   characters or other techniques for enabling reliable transmission by
+   re-encoding the octet string. RFC 1421 suggests one possible solution
+   to this problem.
+
+2. References
+
+      FIPS PUB 46-1  National Bureau of Standards. FIPS PUB 46-1:
+                Data Encryption Standard. January 1988.
+
+      PKCS #1   RSA Laboratories. PKCS #1: RSA Encryption.
+                Version 1.5, November 1993.
+
+      PKCS #6   RSA Laboratories. PKCS #6: Extended-Certificate
+                Syntax. Version 1.5, November 1993.
+
+      PKCS #9   RSA Laboratories. PKCS #9: Selected Attribute
+                Types. Version 1.1, November 1993.
+
+      RFC 1421  Linn, J., "Privacy Enhancement for
+                Internet Electronic Mail: Part I: Message
+                Encryption and Authentication Procedures," RFC 1421
+                February 1993.
+
+      RFC 1422  Kent, S., "Privacy Enhancement for
+                Internet Electronic Mail: Part II: Certificate-
+                Based Key Management," RFC 1422, February 1993.
+
+      RFC 1423  Balenson, D., "Privacy Enhancement for
+                Internet Electronic Mail: Part III: Algorithms,
+                Modes, and Identifiers," RFC 1423, February 1993.
+
+      RFC 1424  Kaliski, B., "Privacy Enhancement for
+                Internet Electronic Mail: Part IV: Key
+                Certification and Related Services," RFC 1424,
+                February 1993.
+
+
+
+
+
+
+
+
+
+
+Kaliski                      Informational                      [Page 2]
+
+RFC 2315          PKCS #7: Crytographic Message Syntax        March 1998
+
+
+      RFC 1319  Kaliski, B., "The MD2 Message-Digest
+                Algorithm," RFC 1319, April 1992.
+
+      RFC 1321  Rivest, R., "The MD5 Message-Digest
+                Algorithm," RFC 1321, April 1992.
+
+      X.208     CCITT. Recommendation X.208: Specification of
+                Abstract Syntax Notation One (ASN.1). 1988.
+
+      X.209     CCITT. Recommendation X.209: Specification of
+                Basic Encoding Rules for Abstract Syntax Notation
+                One (ASN.1). 1988.
+
+      X.500     CCITT. Recommendation X.500: The Directory--
+                Overview of Concepts, Models and
+                Services. 1988.
+
+      X.501     CCITT. Recommendation X.501: The Directory--
+                Models. 1988.
+
+      X.509     CCITT. Recommendation X.509: The Directory--
+                Authentication Framework. 1988.
+
+      [NIST91]  NIST. Special Publication 500-202: Stable
+                Implementation Agreements for Open Systems
+                Interconnection Protocols. Version 5, Edition 1,
+                Part 12. December 1991.
+
+      [RSA78]   R.L. Rivest, A. Shamir, and L. Adleman. A method
+                for obtaining digital signatures and public-key
+                cryptosystems. Communications of the ACM,
+                21(2):120-126, February 1978.
+
+3. Definitions
+
+   For the purposes of this document, the following definitions apply.
+
+   AlgorithmIdentifier: A type that identifies an algorithm (by object
+   identifier) and associated parameters. This type is defined in X.509.
+
+   ASN.1: Abstract Syntax Notation One, as defined in X.208.
+
+   Attribute: A type that contains an attribute type (specified by
+   object identifier) and one or more attribute values. This type is
+   defined in X.501.
+
+   BER: Basic Encoding Rules, as defined in X.209.
+
+
+
+
+Kaliski                      Informational                      [Page 3]
+
+RFC 2315          PKCS #7: Crytographic Message Syntax        March 1998
+
+
+   Certificate: A type that binds an entity's distinguished name to a
+   public key with a digital signature. This type is defined in X.509.
+   This type also contains the distinguished name of the certificate
+   issuer (the signer), an issuer-specific serial number, the issuer's
+   signature algorithm identifier, and a validity period.
+
+   CertificateSerialNumber: A type that uniquely identifies a
+   certificate (and thereby an entity and a public key) among those
+   signed by a particular certificate issuer. This type is defined in
+   X.509.
+
+   CertificateRevocationList: A type that contains information about
+   certificates whose validity an issuer has prematurely revoked. The
+   information consists of an issuer name, the time of issue, the next
+   scheduled time of issue, and a list of certificate serial numbers and
+   their associated revocation times. The CRL is signed by the issuer.
+   The type intended by this document is the one defined RFC 1422.
+
+   DER: Distinguished Encoding Rules for ASN.1, as defined in X.509,
+   Section 8.7.
+
+   DES: Data Encryption Standard, as defined in FIPS PUB 46-1.
+
+   desCBC: The object identifier for DES in cipher-block chaining (CBC)
+   mode, as defined in [NIST91].
+
+   ExtendedCertificate: A type that consists of an X.509 public-key
+   certificate and a set of attributes, collectively signed by the
+   issuer of the X.509 public-key certificate. This type is defined in
+   PKCS #6.
+
+   MD2: RSA Data Security, Inc.'s MD2 message-digest algorithm, as
+   defined in RFC 1319.
+
+   md2: The object identifier for MD2, as defined in RFC 1319.
+
+   MD5: RSA Data Security, Inc.'s MD5 message-digest algorithm, as
+   defined in RFC 1321.
+
+   md5: The object identifier for MD5, as defined in RFC 1321.
+
+   Name: A type that uniquely identifies or "distinguishes" objects in
+   an X.500 directory. This type is defined in X.501. In an X.509
+   certificate, the type identifies the certificate issuer and the
+   entity whose public key is certified.
+
+   PEM: Internet Privacy-Enhanced Mail, as defined in RFCs 1421-1424.
+
+
+
+
+Kaliski                      Informational                      [Page 4]
+
+RFC 2315          PKCS #7: Crytographic Message Syntax        March 1998
+
+
+   RSA: The RSA public-key cryptosystem, as defined in [RSA78].
+
+   rsaEncryption: The object identifier for RSA encryption, as defined
+   in PKCS #1.
+
+4. Symbols and abbreviations
+
+   No symbols or abbreviations are defined in this document.
+
+5. General overview
+
+   The following nine sections specify useful types, general syntax, six
+   content types, and object identifiers.
+
+   The syntax is general enough to support many different content types.
+   This document defines six: data, signed data, enveloped data,
+   signed-and-enveloped data, digested data, and encrypted data. Other
+   content types may be added in the future. The use of content types
+   defined outside this document is possible, but is subject to
+   bilateral agreement between parties exchanging content.
+
+   This document exports one type, ContentInfo, as well as the various
+   object identifiers.
+
+   There are two classes of content types: base and enhanced.  Content
+   types in the base class contain "just data," with no cryptographic
+   enhancements. Presently, one content type is in this class, the data
+   content type. Content types in the enhanced class contain content of
+   some type (possibly encrypted), and other cryptographic enhancements.
+   For example, enveloped-data content can contain (encrypted) signed-
+   data content, which can contain data content. The four non-data
+   content types fall into the enhanced class.  The content types in the
+   enhanced class thus employ encapsulation, giving rise to the terms
+   "outer" content (the one containing the enhancements) and "inner"
+   content (the one being enhanced).
+
+   The document is designed such that the enhanced content types can be
+   prepared in a single pass using indefinite-length BER encoding, and
+   processed in a single pass in any BER encoding. Single-pass operation
+   is especially helpful if content is stored on tapes, or is "piped"
+   from another process. One of the drawbacks of single-pass operation,
+   however, is that it is difficult to output a DER encoding in a single
+   pass, since the lengths of the various components may not be known in
+   advance. Since DER encoding is required by the signed-data, signed-
+   and-enveloped data, and digested-data content types, an extra pass
+   may be necessary when a content type other than data is the inner
+   content of one of those content types.
+
+
+
+
+Kaliski                      Informational                      [Page 5]
+
+RFC 2315          PKCS #7: Crytographic Message Syntax        March 1998
+
+
+6. Useful types
+
+   This section defines types that are useful in at least two places in
+   the document.
+
+6.1 CertificateRevocationLists
+
+   The CertificateRevocationLists type gives a set of certificate-
+   revocation lists. It is intended that the set contain information
+   sufficient to determine whether the certificates with which the set
+   is associated are "hot listed," but there may be more certificate-
+   revocation lists than necessary, or there may be fewer than
+   necessary.
+
+   CertificateRevocationLists ::=
+     SET OF CertificateRevocationList
+
+6.2 ContentEncryptionAlgorithmIdentifier
+
+   The ContentEncryptionAlgorithmIdentifier type identifies a content-
+   encryption algorithm such as DES. A content-encryption algorithm
+   supports encryption and decryption operations. The encryption
+   operation maps an octet string (the message) to another octet string
+   (the ciphertext) under control of a content-encryption key. The
+   decryption operation is the inverse of the encryption operation.
+   Context determines which operation is intended.
+
+   ContentEncryptionAlgorithmIdentifier ::=
+     AlgorithmIdentifier
+
+6.3 DigestAlgorithmIdentifier
+
+   The DigestAlgorithmIdentifier type identifies a message-digest
+   algorithm. Examples include MD2 and MD5. A message-digest algorithm
+   maps an octet string (the message) to another octet string (the
+   message digest).
+
+   DigestAlgorithmIdentifier ::= AlgorithmIdentifier
+
+6.4 DigestEncryptionAlgorithmIdentifier
+
+   The DigestEncryptionAlgorithmIdentifier type identifies a digest-
+   encryption algorithm under which a message digest can be encrypted.
+   One example is PKCS #1's rsaEncryption. A digest-encryption algorithm
+   supports encryption and decryption operations. The encryption
+   operation maps an octet string (the message digest) to another octet
+   .bp string (the encrypted message digest) under control of a digest-
+   encryption key. The decryption operation is the inverse of the
+
+
+
+Kaliski                      Informational                      [Page 6]
+
+RFC 2315          PKCS #7: Crytographic Message Syntax        March 1998
+
+
+   encryption operation. Context determines which operation is intended.
+
+   DigestEncryptionAlgorithmIdentifier ::=
+     AlgorithmIdentifier
+
+6.5 ExtendedCertificateOrCertificate
+
+   The ExtendedCertificateOrCertificate type gives either a PKCS #6
+   extended certificate or an X.509 certificate.  This type follows the
+   syntax recommended in Section 6 of PKCS #6:
+
+   ExtendedCertificateOrCertificate ::= CHOICE {
+     certificate Certificate, -- X.509
+
+     extendedCertificate [0] IMPLICIT ExtendedCertificate }
+
+6.6 ExtendedCertificatesAndCertificates
+
+   The ExtendedCertificatesAndCertificates type gives a set of extended
+   certificates and X.509 certificates. It is intended that the set be
+   sufficient to contain chains from a recognized "root" or "top-level
+   certification authority" to all of the signers with which the set is
+   associated, but there may be more certificates than necessary, or
+   there may be fewer than necessary.
+
+   ExtendedCertificatesAndCertificates ::=
+     SET OF ExtendedCertificateOrCertificate
+
+   Note. The precise meaning of a "chain" is outside the scope of this
+   document. Some applications of this document may impose upper limits
+   on the length of a chain; others may enforce certain relationships
+   between the subjects and issuers of certificates in a chain. An
+   example of such relationships has been proposed for Privacy-Enhanced
+   Mail in RFC 1422.
+
+6.7 IssuerAndSerialNumber
+
+   The IssuerAndSerialNumber type identifies a certificate (and thereby
+   an entity and a public key) by the distinguished name of the
+   certificate issuer and an issuer-specific certificate serial number.
+
+   IssuerAndSerialNumber ::= SEQUENCE {
+     issuer Name,
+     serialNumber CertificateSerialNumber }
+
+
+
+
+
+
+
+Kaliski                      Informational                      [Page 7]
+
+RFC 2315          PKCS #7: Crytographic Message Syntax        March 1998
+
+
+6.8 KeyEncryptionAlgorithmIdentifier
+
+   The KeyEncryptionAlgorithmIdentifier type identifies a key-encryption
+   algorithm under which a content-encryption key can be encrypted. One
+   example is PKCS #1's rsaEncryption. A key-encryption algorithm
+   supports encryption and decryption operations. The encryption
+   operation maps an octet string (the key) to another octet string (the
+   encrypted key) under control of a key-encryption key. The decryption
+   operation is the inverse of the encryption operation.  Context
+   determines which operation is intended.
+
+   KeyEncryptionAlgorithmIdentifier ::=
+     AlgorithmIdentifier
+
+6.9 Version
+
+   The Version type gives a syntax version number, for compatibility
+   with future revisions of this document.
+
+   Version ::= INTEGER
+
+7. General syntax
+
+   The general syntax for content exchanged between entities according
+   to this document associates a content type with content. The syntax
+   shall have ASN.1 type ContentInfo:
+
+   ContentInfo ::= SEQUENCE {
+     contentType ContentType,
+     content
+       [0] EXPLICIT ANY DEFINED BY contentType OPTIONAL }
+
+   ContentType ::= OBJECT IDENTIFIER
+
+   The fields of type ContentInfo have the following meanings:
+
+        o    contentType indicates the type of content. It is
+             an object identifier, which means it is a unique string of
+             integers assigned by the authority that defines the content
+             type. This document defines six content types (see Section
+             14): data, signedData, envelopedData,
+             signedAndEnvelopedData, digestedData, and encryptedData.
+
+        o    content is the content. The field is optional, and
+             if the field is not present, its intended value must be
+             supplied by other means. Its type is defined along with the
+             object identifier for contentType.
+
+
+
+
+Kaliski                      Informational                      [Page 8]
+
+RFC 2315          PKCS #7: Crytographic Message Syntax        March 1998
+
+
+   Notes.
+
+        1.   The methods below assume that the type of content
+             can be determined uniquely by contentType, so the type
+             defined along with the object identifier should not be a
+             CHOICE type.
+
+        2.   When a ContentInfo value is the inner content of
+             signed-data, signed-and-enveloped-data, or digested-data
+             content, a message-digest algorithm is applied to the
+             contents octets of the DER encoding of the content field.
+             When a ContentInfo value is the inner content of
+             enveloped-data or signed-and-enveloped-data content, a
+             content-encryption algorithm is applied to the contents
+             octets of a definite-length BER encoding of the content
+             field.
+
+        3.   The optional omission of the content field makes
+             it possible to construct "external signatures," for
+             example, without modification to or replication of the
+             content to which the signatures apply. In the case of
+             external signatures, the content being signed would be
+             omitted from the "inner" encapsulated ContentInfo value
+             included in the signed-data content type.
+
+8. Data content type
+
+   The data content type is just an octet string. It shall have ASN.1
+   type Data:
+
+   Data ::= OCTET STRING
+
+   The data content type is intended to refer to arbitrary octet
+   strings, such as ASCII text files; the interpretation is left to the
+   application. Such strings need not have any internal structure
+   (although they may; they could even be DER encodings).
+
+9. Signed-data content type
+
+   The signed-data content type consists of content of any type and
+   encrypted message digests of the content for zero or more signers.
+   The encrypted digest for a signer is a "digital signature" on the
+   content for that signer. Any type of content can be signed by any
+   number of signers in parallel. Furthermore, the syntax has a
+   degenerate case in which there are no signers on the content. The
+   degenerate case provides a means for disseminating certificates and
+   certificate-revocation lists.
+
+
+
+
+Kaliski                      Informational                      [Page 9]
+
+RFC 2315          PKCS #7: Crytographic Message Syntax        March 1998
+
+
+   It is expected that the typical application of the signed-data
+   content type will be to represent one signer's digital signature on
+   content of the data content type. Another typical application will be
+   to disseminate certificates and certificate-revocation lists.
+
+   The process by which signed data is constructed involves the
+   following steps:
+
+        1.   For each signer, a message digest is computed on
+             the content with a signer-specific message-digest
+             algorithm. (If two signers employ the same message-digest
+             algorithm, then the message digest need be computed for
+             only one of them.) If the signer is authenticating any
+             information other than the content (see Section 9.2), the
+             message digest of the content and the other information are
+             digested with the signer's message digest algorithm, and
+             the result becomes the "message digest."
+
+        2.   For each signer, the message digest and associated
+             information are encrypted with the signer's private key.
+
+        3.   For each signer, the encrypted message digest and
+             other signer-specific information are collected into a
+             SignerInfo value, defined in Section 9.2.  Certificates and
+             certificate-revocation lists for each signer, and those not
+             corresponding to any signer, are collected in this step.
+
+        4.   The message-digest algorithms for all the signers
+             and the SignerInfo values for all the signers are collected
+             together with the content into a SignedData value, defined
+             in Section 9.1.
+
+   A recipient verifies the signatures by decrypting the encrypted
+   message digest for each signer with the signer's public key, then
+   comparing the recovered message digest to an independently computed
+   message digest. The signer's public key is either contained in a
+   certificate included in the signer information, or is referenced by
+   an issuer distinguished name and an issuer-specific serial number
+   that uniquely identify the certificate for the public key.
+
+   This section is divided into five parts. The first part describes the
+   top-level type SignedData, the second part describes the per-signer
+   information type SignerInfo, and the third and fourth parts describe
+   the message-digesting and digest-encryption processes. The fifth part
+   summarizes compatibility with Privacy-Enhanced Mail.
+
+
+
+
+
+
+Kaliski                      Informational                     [Page 10]
+
+RFC 2315          PKCS #7: Crytographic Message Syntax        March 1998
+
+
+9.1 SignedData type
+
+   The signed-data content type shall have ASN.1 type SignedData:
+
+   SignedData ::= SEQUENCE {
+     version Version,
+     digestAlgorithms DigestAlgorithmIdentifiers,
+     contentInfo ContentInfo,
+     certificates
+        [0] IMPLICIT ExtendedCertificatesAndCertificates
+          OPTIONAL,
+     crls
+       [1] IMPLICIT CertificateRevocationLists OPTIONAL,
+     signerInfos SignerInfos }
+
+   DigestAlgorithmIdentifiers ::=
+
+     SET OF DigestAlgorithmIdentifier
+
+   SignerInfos ::= SET OF SignerInfo
+
+   The fields of type SignedData have the following meanings:
+
+        o    version is the syntax version number. It shall be
+             1 for this version of the document.
+
+        o    digestAlgorithms is a collection of message-digest
+             algorithm identifiers. There may be any number of
+             elements in the collection, including zero. Each
+             element identifies the message-digest algorithm
+             (and any associated parameters) under which the
+             content is digested for a some signer. The
+             collection is intended to list the message-digest
+             algorithms employed by all of the signers, in any
+             order, to facilitate one-pass signature
+             verification. The message-digesting process is
+             described in Section 9.3.
+
+        o    contentInfo is the content that is signed. It can
+             have any of the defined content types.
+
+        o    certificates is a set of PKCS #6 extended
+             certificates and X.509 certificates. It is intended that
+             the set be sufficient to contain chains from a recognized
+             "root" or "top-level certification authority" to all of the
+             signers in the signerInfos field. There may be more
+             certificates than necessary, and there may be certificates
+             sufficient to contain chains from two or more independent
+
+
+
+Kaliski                      Informational                     [Page 11]
+
+RFC 2315          PKCS #7: Crytographic Message Syntax        March 1998
+
+
+             top-level certification authorities. There may also be
+             fewer certificates than necessary, if it is expected that
+             those verifying the signatures have an alternate means of
+             obtaining necessary certificates (e.g., from a previous set
+             of certificates).
+
+        o    crls is a set of certificate-revocation lists. It
+             is intended that the set contain information sufficient to
+             determine whether or not the certificates in the
+             certificates field are "hot listed," but such
+             correspondence is not necessary.  There may be more
+             certificate-revocation lists than necessary, and there may
+             also be fewer certificate-revocation lists than necessary.
+
+        o    signerInfos is a collection of per-signer
+             information. There may be any number of elements in the
+             collection, including zero.
+
+   Notes.
+
+        1.   The fact that the digestAlgorithms field comes
+             before the contentInfo field and the signerInfos field
+             comes after it makes it possible to process a SignedData
+             value in a single pass. (Single-pass processing is
+             described in Section 5.)
+
+        2.   The differences between version 1 SignedData and
+             version 0 SignedData (defined in PKCS #7, Version 1.4) are
+             the following:
+
+                  o    the digestAlgorithms and signerInfos
+                       fields may contain zero elements in version 1,
+                       but not in version 0
+
+                  o    the crls field is allowed in version 1,
+                       but not in version 0
+
+             Except for the difference in version number, version 0
+             SignedData values are acceptable as version 1 values. An
+             implementation can therefore process SignedData values of
+             either version as though they were version 1 values. It is
+             suggested that PKCS implementations generate only version 1
+             SignedData values, but be prepared to process SignedData
+             values of either version.
+
+
+
+
+
+
+
+Kaliski                      Informational                     [Page 12]
+
+RFC 2315          PKCS #7: Crytographic Message Syntax        March 1998
+
+
+        3.   In the degenerate case where there are no signers
+             on the content, the ContentInfo value being "signed" is
+             irrelevant. It is recommended in that case that the content
+             type of the ContentInfo value being "signed" be data, and
+             the content field of the ContentInfo value be omitted.
+
+9.2 SignerInfo type
+
+   Per-signer information is represented in the type SignerInfo:
+
+   SignerInfo ::= SEQUENCE {
+     version Version,
+     issuerAndSerialNumber IssuerAndSerialNumber,
+     digestAlgorithm DigestAlgorithmIdentifier,
+     authenticatedAttributes
+       [0] IMPLICIT Attributes OPTIONAL,
+     digestEncryptionAlgorithm
+       DigestEncryptionAlgorithmIdentifier,
+     encryptedDigest EncryptedDigest,
+     unauthenticatedAttributes
+       [1] IMPLICIT Attributes OPTIONAL }
+
+   EncryptedDigest ::= OCTET STRING
+
+   The fields of type SignerInfo have the following meanings:
+
+        o    version is the syntax version number. It shall be
+             1 for this version of the document.
+
+        o    issuerAndSerialNumber specifies the signer's
+             certificate (and thereby the signer's distinguished name
+             and public key) by issuer distinguished name and issuer-
+             specific serial number.
+
+        o    digestAlgorithm identifies the message-digest
+             algorithm (and any associated parameters) under which the
+             content and authenticated attributes (if present) are
+             digested. It should be among those in the digestAlgorithms
+             field of the superior SignerInfo value. The message-
+             digesting process is described in Section 9.3.
+
+        o    authenticatedAttributes is a set of attributes
+             that are signed (i.e., authenticated) by the signer. The
+             field is optional, but it must be present if the content
+             type of the ContentInfo value being signed is not data. If
+             the field is present, it must contain, at a minimum, two
+             attributes:
+
+
+
+
+Kaliski                      Informational                     [Page 13]
+
+RFC 2315          PKCS #7: Crytographic Message Syntax        March 1998
+
+
+                  1.   A PKCS #9 content-type attribute having
+                       as its value the content type of the
+                       ContentInfo value being signed.
+
+                  2.   A PKCS #9 message-digest attribute,
+                       having as its value the message digest
+                       of the content (see below).
+
+             Other attribute types that might be useful here, such as
+             signing time, are also defined in PKCS #9.
+
+        o    digestEncryptionAlgorithm identifies the digest-
+             encryption algorithm (and any associated parameters) under
+             which the message digest and associated information are
+             encrypted with the signer's private key. The digest-
+             encryption process is described in Section 9.4.
+
+        o    encryptedDigest is the result of encrypting the
+             message digest and associated information with the signer's
+             private key.
+
+        o    unauthenticatedAttributes is a set of attributes
+             that are not signed (i.e., authenticated) by the signer.
+             The field is optional. Attribute types that might be useful
+             here, such as countersignatures, are defined in PKCS #9.
+
+   Notes.
+
+        1.   It is recommended in the interest of PEM
+             compatibility that the authenticatedAttributes field be
+             omitted whenever the content type of the ContentInfo value
+             being signed is data and there are no other authenticated
+             attributes.
+
+        2.   The difference between version 1 SignerInfo and
+             version 0 SignerInfo (defined in PKCS #7, Version 1.4) is
+             in the message-digest encryption process (see Section 9.4).
+             Only the PEM-compatible processes are different, reflecting
+             changes in Privacy-Enhanced Mail signature methods. There
+             is no difference in the non-PEM-compatible message-digest
+             encryption process.
+
+             It is suggested that PKCS implementations generate only
+             version 1 SignedData values. Since the PEM signature method
+             with which version 0 is compatible is obsolescent, it is
+             suggested that PKCS implementations be prepared to receive
+             only version 1 SignedData values.
+
+
+
+
+Kaliski                      Informational                     [Page 14]
+
+RFC 2315          PKCS #7: Crytographic Message Syntax        March 1998
+
+
+9.3 Message-digesting process
+
+   The message-digesting process computes a message digest on either the
+   content being signed or the content together with the signer's
+   authenticated attributes. In either case, the initial input to the
+   message-digesting process is the "value" of the content being signed.
+   Specifically, the initial input is the contents octets of the DER
+   encoding of the content field of the ContentInfo value to which the
+   signing process is applied. Only the contents octets of the DER
+   encoding of that field are digested, not the identifier octets or the
+   length octets.
+
+   The result of the message-digesting process (which is called,
+   informally, the "message digest") depends on whether the
+   authenticatedAttributes field is present. When the field is absent,
+   the result is just the message digest of the content. When the field
+   is present, however, the result is the message digest of the complete
+   DER encoding of the Attributes value containted in the
+   authenticatedAttributes field. (For clarity: The IMPLICIT [0] tag in
+   the authenticatedAttributes field is not part of the Attributes
+   value. The Attributes value's tag is SET OF, and the DER encoding of
+   the SET OF tag, rather than of the IMPLICIT [0] tag, is to be
+   digested along with the length and contents octets of the Attributes
+   value.) Since the Attributes value, when the field is present, must
+   contain as attributes the content type and the message digest of the
+   content, those values are indirectly included in the result.
+
+   When the content being signed has content type data and the
+   authenticatedAttributes field is absent, then just the value of the
+   data (e.g., the contents of a file) is digested. This has the
+   advantage that the length of the content being signed need not be
+   known in advance of the encryption process. This method is compatible
+   with Privacy-Enhanced Mail.
+
+   Although the identifier octets and the length octets are not
+   digested, they are still protected by other means. The length octets
+   are protected by the nature of the message-digest algorithm since it
+   is by assumption computationally infeasible to find any two distinct
+   messages of any length that have the same message digest.
+   Furthermore, assuming that the content type uniquely determines the
+   identifier octets, the identifier octets are protected implicitly in
+   one of two ways: either by the inclusion of the content type in the
+   authenticated attributes, or by the use of the PEM-compatible
+   alternative in Section 9.4 which implies that the content type is
+   data.
+
+
+
+
+
+
+Kaliski                      Informational                     [Page 15]
+
+RFC 2315          PKCS #7: Crytographic Message Syntax        March 1998
+
+
+   Note. The fact that the message digest is computed on part of a DER
+   encoding does not mean that DER is the required method of
+   representing that part for data transfer. Indeed, it is expected that
+   some implementations of this document may store objects in other than
+   their DER encodings, but such practices do not affect message-digest
+   computation.
+
+9.4 Digest-encryption process
+
+   The input to the digest-encryption process--the value supplied to the
+   signer's digest-encryption algorithm--includes the result of the
+   message-digesting process (informally, the "message digest") and the
+   digest algorithm identifier (or object identifier). The result of the
+   digest-encryption process is the encryption with the signer's private
+   key of the BER encoding of a value of type DigestInfo:
+
+   DigestInfo ::= SEQUENCE {
+     digestAlgorithm DigestAlgorithmIdentifier,
+     digest Digest }
+
+   Digest ::= OCTET STRING
+
+   The fields of type DigestInfo have the following meanings:
+
+        o    digestAlgorithm identifies the message-digest
+             algorithm (and any associated parameters) under which the
+             content and authenticated attributes are digested. It
+             should be the same as the digestAlgorithm field of the
+             superior SignerInfo value.
+
+        o    digest is the result of the message-digesting
+             process.
+
+   Notes.
+
+        1.   The only difference between the signature process
+             defined here and the signature algorithms defined in PKCS
+             #1 is that signatures there are represented as bit strings,
+             for consistency with the X.509 SIGNED macro. Here,
+             encrypted message digests are octet strings.
+
+        2.   The input to the encryption process typically will
+             have 30 or fewer octets. If digestEncryptionAlgorithm is
+             PKCS #1's rsaEncryption, then this means that the input can
+             be encrypted in a single block as long as the length of the
+             RSA modulus is at least 328 bits, which is reasonable and
+             consistent with security recommendations.
+
+
+
+
+Kaliski                      Informational                     [Page 16]
+
+RFC 2315          PKCS #7: Crytographic Message Syntax        March 1998
+
+
+        3.   A message-digest algorithm identifier is included
+             in the DigestInfo value to limit the damage resulting from
+             the compromise of one message-digest algorithm. For
+             instance, suppose an adversary were able to find messages
+             with a given MD2 message digest.  That adversary could then
+             forge a signature by finding a message with the same MD2
+             message digest as one that a signer previously signed, and
+             presenting the previous signature as the signature on the
+             new message.  This attack would succeed only if the signer
+             previously used MD2, since the DigestInfo value contains
+             the message-digest algorithm.  If a signer never trusted
+             the MD2 algorithm and always used MD5, then the compromise
+             of MD2 would not affect the signer. If the DigestInfo value
+             contained only the message digest, however, the compromise
+             of MD2 would affect signers that use any message-digest
+             algorithm.
+
+        4.   There is potential for ambiguity due to the fact
+             that the DigestInfo value does not indicate whether the
+             digest field contains just the message digest of the
+             content or the message digest of the complete DER encoding
+             of the authenticatedAttributes field. In other words, it is
+             possible for an adversary to transform a signature on
+             authenticated attributes to one that appears to be just on
+             content by changing the content to be the DER encoding of
+             the authenticatedAttributes field, and then removing the
+             authenticatedAttributes field. (The reverse transformation
+             is possible, but requires that the content be the DER
+             encoding of an authenticated attributes value, which is
+             unlikely.) This ambiguity is not a new problem, nor is it a
+             significant one, as context will generally prevent misuse.
+             Indeed, it is also possible for an adversary to transform a
+             signature on a certificate or certificate-revocation list
+             to one that appears to be just on signed-data content.
+
+9.5 Compatibility with Privacy-Enhanced Mail
+
+   Compatibility with the MIC-ONLY and MIC-CLEAR process types in PEM
+   occurs when the content type of the ContentInfo value being signed is
+   data, there are no authenticated attributes, the message-digest
+   algorithm is md2 or md5, and the digest-encryption algorithm is PKCS
+   #1's rsaEncryption. Under all those conditions, the encrypted message
+   digest produced here matches the one produced in PEM because:
+
+        1.   The value input to the message-digest algorithm in
+             PEM is the same as in this document when there are no
+             authenticated attributes. MD2 and MD5 in PEM are the same
+             as md2 and md5.
+
+
+
+Kaliski                      Informational                     [Page 17]
+
+RFC 2315          PKCS #7: Crytographic Message Syntax        March 1998
+
+
+        2.   The value encrypted with the signer's private key
+             in PEM (as specified in RFC 1423) is the same as in this
+             document when there are no authenticated attributes. RSA
+             private-key encryption in PEM is the same as PKCS #1's
+             rsaEncryption.
+
+   The other parts of the signed-data content type (certificates, CRLs,
+   algorithm identifiers, etc.) are easily translated to and from their
+   corresponding PEM components.
+
+10. Enveloped-data content type
+
+   The enveloped-data content type consists of encrypted content of any
+   type and encrypted content-encryption keys for one or more
+   recipients. The combination of encrypted content and encrypted
+   content-encryption key for a recipient is a "digital envelope" for
+   that recipient. Any type of content can be enveloped for any number
+   of recipients in parallel.
+
+   It is expected that the typical application of the enveloped-data
+   content type will be to represent one or more recipients' digital
+   envelopes on content of the data, digested-data, or signed-data
+   content types.
+
+   The process by which enveloped data is constructed involves the
+   following steps:
+
+        1.   A content-encryption key for a particular content-
+             encryption algorithm is generated at random.
+
+        2.   For each recipient, the content-encryption key is
+             encrypted with the recipient's public key.
+
+        3.   For each recipient, the encrypted content-
+             encryption key and other recipient-specific information are
+             collected into a RecipientInfo value, defined in Section
+             10.2.
+
+        4.   The content is encrypted with the content-
+             encryption key. (Content encryption may require that the
+             content be padded to a multiple of some block size; see
+             Section 10.3 for discussion.)
+
+        5.   The RecipientInfo values for all the recipients
+             are collected together with the encrypted content into a
+             EnvelopedData value, defined in Section 10.1.
+
+
+
+
+
+Kaliski                      Informational                     [Page 18]
+
+RFC 2315          PKCS #7: Crytographic Message Syntax        March 1998
+
+
+   A recipient opens the envelope by decrypting the one of the encrypted
+   content-encryption keys with the recipient's private key and
+   decrypting the encrypted content with the recovered content-
+   encryption key. The recipient's private key is referenced by an
+   issuer distinguished name and an issuer-specific serial number that
+   uniquely identify the certificate for the corresponding public key.
+
+   This section is divided into four parts. The first part describes the
+   top-level type EnvelopedData, the second part describes the per-
+   recipient information type RecipientInfo, and the third and fourth
+   parts describe the content-encryption and key-encryption processes.
+
+   This content type is not compatible with Privacy-Enhanced Mail
+   (although some processes it defines are compatible with their PEM
+   counterparts), since Privacy-Enhanced Mail always involves digital
+   signatures, never digital envelopes alone.
+
+10.1 EnvelopedData type
+
+   The enveloped-data content type shall have ASN.1 type EnvelopedData:
+
+   EnvelopedData ::= SEQUENCE {
+     version Version,
+     recipientInfos RecipientInfos,
+     encryptedContentInfo EncryptedContentInfo }
+
+   RecipientInfos ::= SET OF RecipientInfo
+
+   EncryptedContentInfo ::= SEQUENCE {
+     contentType ContentType,
+     contentEncryptionAlgorithm
+       ContentEncryptionAlgorithmIdentifier,
+     encryptedContent
+       [0] IMPLICIT EncryptedContent OPTIONAL }
+
+   EncryptedContent ::= OCTET STRING
+
+   The fields of type EnvelopedData have the following meanings:
+
+        o    version is the syntax version number. It shall be
+             0 for this version of the document.
+
+        o    recipientInfos is a collection of per-recipient
+             information. There must be at least one element in
+             the collection.
+
+        o    encryptedContentInfo is the encrypted content
+             information.
+
+
+
+Kaliski                      Informational                     [Page 19]
+
+RFC 2315          PKCS #7: Crytographic Message Syntax        March 1998
+
+
+   The fields of type EncryptedContentInfo have the following meanings:
+
+        o    contentType indicates the type of content.
+
+        o    contentEncryptionAlgorithm identifies the content-
+             encryption algorithm (and any associated
+             parameters) under which the content is encrypted.
+             The content-encryption process is described in
+             Section 10.3. This algorithm is the same for all
+             recipients.
+
+        o    encryptedContent is the result of encrypting the
+             content. The field is optional, and if the field
+             is not present, its intended value must be
+             supplied by other means.
+
+   Note. The fact that the recipientInfos field comes before the
+   encryptedContentInfo field makes it possible to process an
+   EnvelopedData value in a single pass. (Single-pass processing is
+   described in Section 5.)
+
+10.2 RecipientInfo type
+
+   Per-recipient information is represented in the type RecipientInfo:
+
+   RecipientInfo ::= SEQUENCE {
+     version Version,
+     issuerAndSerialNumber IssuerAndSerialNumber,
+     keyEncryptionAlgorithm
+
+       KeyEncryptionAlgorithmIdentifier,
+     encryptedKey EncryptedKey }
+
+   EncryptedKey ::= OCTET STRING
+
+   The fields of type RecipientInfo have the following meanings:
+
+        o    version is the syntax version number. It shall be
+             0 for this version of the document.
+
+        o    issuerAndSerialNumber specifies the recipient's
+             certificate (and thereby the recipient's
+             distinguished name and public key) by issuer
+             distinguished name and issuer-specific serial
+             number.
+
+
+
+
+
+
+Kaliski                      Informational                     [Page 20]
+
+RFC 2315          PKCS #7: Crytographic Message Syntax        March 1998
+
+
+        o    keyEncryptionAlgorithm identifies the key-
+             encryption algorithm (and any associated
+             parameters) under which the content-encryption key
+             is encrypted with the recipient's public key. The
+             key-encryption process is described in Section
+             10.4.
+
+        o    encryptedKey is the result of encrypting the
+             content-encryption key with the recipient's public
+             key (see below).
+
+10.3 Content-encryption process
+
+   The input to the content-encryption process is the "value" of the
+   content being enveloped. Specifically, the input is the contents
+   octets of a definite-length BER encoding of the content field of the
+   ContentInfo value to which the enveloping process is applied. Only
+   the contents octets of the BER encoding are encrypted, not the
+   identifier octets or length octets; those other octets are not
+   represented at all.
+
+   When the content being enveloped has content type data, then just the
+   value of the data (e.g., the contents of a file) is encrypted. This
+   has the advantage that the length of the content being encrypted need
+   not be known in advance of the encryption process. This method is
+   compatible with Privacy-Enhanced Mail.
+
+   The identifier octets and the length octets are not encrypted. The
+   length octets may be protected implicitly by the encryption process,
+   depending on the encryption algorithm. The identifier octets are not
+   protected at all, although they can be recovered from the content
+   type, assuming that the content type uniquely determines the
+   identifier octets. Explicit protection of the identifier and length
+   octets requires that the signed-and-enveloped-data content type be
+   employed, or that the digested-data and enveloped-data content types
+   be applied in succession.
+
+   Notes.
+
+        1.   The reason that a definite-length BER encoding is
+             required is that the bit indicating whether the length is
+             definite or indefinite is not recorded anywhere in the
+             enveloped-data content type.  Definite-length encoding is
+             more appropriate for simple types such as octet strings, so
+             definite-length encoding is chosen.
+
+
+
+
+
+
+Kaliski                      Informational                     [Page 21]
+
+RFC 2315          PKCS #7: Crytographic Message Syntax        March 1998
+
+
+        2.   Some content-encryption algorithms assume the
+             input length is a multiple of k octets, where k > 1, and
+             let the application define a method for handling inputs
+             whose lengths are not a multiple of k octets. For such
+             algorithms, the method shall be to pad the input at the
+             trailing end with k - (l mod k) octets all having value k -
+             (l mod k), where l is the length of the input. In other
+             words, the input is padded at the trailing end with one of
+             the following strings:
+
+                      01 -- if l mod k = k-1
+                     02 02 -- if l mod k = k-2
+                                 .
+                                 .
+                                 .
+                   k k ... k k -- if l mod k = 0
+
+             The padding can be removed unambiguously since all input is
+             padded and no padding string is a suffix of another. This
+             padding method is well-defined if and only if k < 256;
+             methods for larger k are an open issue for further study.
+
+10.4 Key-encryption process
+
+   The input to the key-encryption process--the value supplied to the
+   recipient's key-encryption algorithm--is just the "value" of the
+   content-encryption key.
+
+11. Signed-and-enveloped-data content type
+
+   This section defines the signed-and-enveloped-data content type. For
+   brevity, much of this section is expressed in terms of material in
+   Sections 9 and 10.
+
+   The signed-and-enveloped-data content type consists of encrypted
+   content of any type, encrypted content-encryption keys for one or
+   more recipients, and doubly encrypted message digests for one or more
+   signers. The "double encryption" consists of an encryption with a
+   signer's private key followed by an encryption with the content-
+   encryption key.
+
+   The combination of encrypted content and encrypted content-encryption
+   key for a recipient is a "digital envelope" for that recipient. The
+   recovered singly encrypted message digest for a signer is a "digital
+   signature" on the recovered content for that signer.  Any type of
+   content can be enveloped for any number of recipients and signed by
+   any number of signers in parallel.
+
+
+
+
+Kaliski                      Informational                     [Page 22]
+
+RFC 2315          PKCS #7: Crytographic Message Syntax        March 1998
+
+
+   It is expected that the typical application of the signed-and-
+   enveloped-data content type will be to represent one signer's digital
+   signature and one or more recipients' digital envelopes on content of
+   the data content type.
+
+   The process by which signed-and-enveloped data is constructed
+   involves the following steps:
+
+        1.   A content-encryption key for a particular content-
+             encryption algorithm is generated at random.
+
+        2.   For each recipient, the content-encryption key is
+             encrypted with the recipient's public key.
+
+        3.   For each recipient, the encrypted content-
+             encryption key and other recipient-specific
+             information are collected into a RecipientInfo
+             value, defined in Section 10.2.
+
+        4.   For each signer, a message digest is computed on
+             the content with a signer-specific message-digest
+             algorithm. (If two signers employ the same message-
+             digest algorithm, then the message digest need be
+             computed for only one of them.)
+
+        5.   For each signer, the message digest and associated
+             information are encrypted with the signer's
+             private key, and the result is encrypted with the
+             content-encryption key. (The second encryption may
+             require that the result of the first encryption be
+             padded to a multiple of some block size; see
+             Section 10.3 for discussion.)
+
+        6.   For each signer, the doubly encrypted message
+             digest and other signer-specific information are
+             collected into a SignerInfo value, defined in
+             Section 9.2.
+
+        7.   The content is encrypted with the content-
+             encryption key. (See Section 10.3 for discussion.)
+
+        8.   The message-digest algorithms for all the signers,
+             the SignerInfo values for all the signers and the
+             RecipientInfo values for all the recipients are
+             collected together with the encrypted content into
+             a SignedAndEnvelopedData value, defined in Section
+             11.1.
+
+
+
+
+Kaliski                      Informational                     [Page 23]
+
+RFC 2315          PKCS #7: Crytographic Message Syntax        March 1998
+
+
+   A recipient opens the envelope and verifies the signatures in two
+   steps. First, the one of the encrypted content-encryption keys is
+   decrypted with the recipient's private key, and the encrypted content
+   is decrypted with the recovered content-encryption key. Second, the
+   doubly encrypted message digest for each signer is decrypted with the
+   recovered content-encryption key, the result is decrypted with the
+   signer's public key, and the recovered message digest is compared to
+   an independently computed message digest.
+
+   Recipient private keys and signer public keys are contained or
+   referenced as discussed in Sections 9 and 10.
+
+   This section is divided into three parts. The first part describes
+   the top-level type SignedAndEnvelopedData and the second part
+   describes the digest-encryption process. Other types and processes
+   are the same as in Sections 9 and 10.  The third part summarizes
+   compatibility with Privacy-Enhanced Mail.
+
+   Note. The signed-and-enveloped-data content type provides
+   cryptographic enhancements similar to those resulting from the
+   sequential combination of signed-data and enveloped-data content
+   types. However, since the signed-and-enveloped-data content type does
+   not have authenticated or unauthenticated attributes, nor does it
+   provide enveloping of signer information other than the signature,
+   the sequential combination of signed-data and enveloped-data content
+   types is generally preferable to the SignedAndEnvelopedData content
+   type, except when compatibility with the ENCRYPTED process type in
+   Privacy-Enhanced Mail in intended.
+
+11.1 SignedAndEnvelopedData type
+
+   The signed-and-enveloped-data content type shall have ASN.1 type
+   SignedAndEnvelopedData:
+
+   SignedAndEnvelopedData ::= SEQUENCE {
+     version Version,
+     recipientInfos RecipientInfos,
+     digestAlgorithms DigestAlgorithmIdentifiers,
+     encryptedContentInfo EncryptedContentInfo,
+     certificates
+        [0] IMPLICIT ExtendedCertificatesAndCertificates
+          OPTIONAL,
+     crls
+       [1] IMPLICIT CertificateRevocationLists OPTIONAL,
+     signerInfos SignerInfos }
+
+
+
+
+
+
+Kaliski                      Informational                     [Page 24]
+
+RFC 2315          PKCS #7: Crytographic Message Syntax        March 1998
+
+
+   The fields of type SignedAndEnvelopedData have the following
+   meanings:
+
+        o    version is the syntax version number. It shall be
+             1 for this version of the document.
+
+        o    recipientInfos is a collection of per-recipient
+             information, as in Section 10. There must be at
+             least one element in the collection.
+
+        o    digestAlgorithms is a collection of message-digest
+             algorithm identifiers, as in Section 9. The
+             message-digesting process is the same as in
+             Section 9 in the case when there are no
+             authenticated attributes.
+
+        o    encryptedContentInfo is the encrypted content, as
+             in Section 10. It can have any of the defined
+             content types.
+
+        o    certificates is a set of PKCS #6 extended
+             certificates and X.509 certificates, as in Section
+             9.
+
+        o    crls is a set of certificate-revocation lists, as
+             in Section 9.
+
+        o    signerInfos is a collection of per-signer
+             information. There must be at least one element in
+             the collection. SignerInfo values have the same
+             meaning as in Section 9 with the exception of the
+             encryptedDigest field (see below).
+
+   Notes.
+
+        1.   The fact that the recipientInfos and
+             digestAlgorithms fields come before the contentInfo field
+             and the signerInfos field comes after it makes it possible
+             to process a SignedAndEnvelopedData value in a single pass.
+             (Single-pass processing is described in Section 5.)
+
+        2.   The difference between version 1
+             SignedAndEnvelopedData and version 0 SignedAndEnvelopedData
+             (defined in PKCS #7, Version 1.4) is that the crls field is
+             allowed in version 1, but not in version 0. Except for the
+             difference in version number, version 0
+             SignedAndEnvelopedData values are acceptable as version 1
+             values. An implementation can therefore process
+
+
+
+Kaliski                      Informational                     [Page 25]
+
+RFC 2315          PKCS #7: Crytographic Message Syntax        March 1998
+
+
+             SignedAndEnvelopedData values of either version as though
+             they were version 1 values. It is suggested that PKCS
+             implementations generate only version 1
+             SignedAndEnvelopedData values, but be prepared to process
+             SignedAndEnvelopedData values of either version.
+
+11.2 Digest-encryption process
+
+   The input to the digest-encryption process is the same as in Section
+   9, but the process itself is different.  Specifically, the process
+   involves two steps. First, the input to the process is supplied to
+   the signer's digest-encryption algorithm, as in Section 9. Second,
+   the result of the first step is encrypted with the content-encryption
+   key.  There is no DER encoding between the two steps; the "value"
+   output by the first step is input directly to the second step. (See
+   Section 10.3 for discussion.)
+
+   This process is compatible with the ENCRYPTED process type in
+   Privacy-Enhanced Mail.
+
+   Note. The purpose of the second step is to prevent an adversary from
+   recovering the message digest of the content.  Otherwise, an
+   adversary would be able to determine which of a list of candidate
+   contents (e.g., "Yes" or "No") is the actual content by comparing the
+   their message digests to the actual message digest.
+
+11.3 Compatibility with Privacy-Enhanced Mail
+
+   Compatibility with the ENCRYPTED process type of PEM occurs when the
+   content type of the ContentInfo value being signed and enveloped is
+   data, the message-digest algorithm is md2 or md5, the content-
+   encryption algorithm is DES in CBC mode, the digest-encryption
+   algorithm is PKCS #1's rsaEncryption, and the key-encryption
+   algorithm is PKCS #1's rsaEncryption.  Under all those conditions,
+   the doubly encrypted message digest and the encrypted content
+   encryption key match the ones produced in PEM because of reasons
+   similar to those given in Section 9.5, as well as the following:
+
+        1.   The value input to the content-encryption
+             algorithm in PEM is the same as in this document.
+             DES in CBC mode is the same as desCBC.
+
+        2.   The value input to the key-encryption algorithm in
+             PEM is the same as in this document (see Section
+             10.4). RSA public-key encryption in PEM is the
+             same as PKCS #1's rsaEncryption.
+
+
+
+
+
+Kaliski                      Informational                     [Page 26]
+
+RFC 2315          PKCS #7: Crytographic Message Syntax        March 1998
+
+
+        3.   The double-encryption process applied to the
+             message digest in this document and in PEM are the
+             same.
+
+   The other parts of the signed-and-enveloped-data content type
+   (certificates, CRLs, algorithm identifiers, etc.) are easily
+   translated to and from their corresponding PEM components. (CRLs are
+   carried in a separate PEM message.)
+
+12. Digested-data content type
+
+   The digested-data content type consists of content of any type and a
+   message digest of the content.
+
+   It is expected that the typical application of the digested-data
+   content type will be to add integrity to content of the data content
+   type, and that the result would become the content input to the
+   enveloped-data content type.
+
+   The process by which digested-data is constructed involves the
+   following steps:
+
+        1.   A message digest is computed on the content with a
+             message-digest algorithm.
+
+        2.   The message-digest algorithm and the message
+             digest are collected together with the content
+             into a DigestedData value.
+
+   A recipient verifies the message digest by comparing the message
+   digest to an independently computed message digest.
+
+   The digested-data content type shall have ASN.1 type DigestedData:
+
+   DigestedData ::= SEQUENCE {
+     version Version,
+     digestAlgorithm DigestAlgorithmIdentifier,
+     contentInfo ContentInfo,
+     digest Digest }
+
+   Digest ::= OCTET STRING
+
+   The fields of type DigestedData have the following meanings:
+
+        o    version is the syntax version number. It shall be
+             0 for this version of the document.
+
+
+
+
+
+Kaliski                      Informational                     [Page 27]
+
+RFC 2315          PKCS #7: Crytographic Message Syntax        March 1998
+
+
+        o    digestAlgorithm identifies the message-digest
+             algorithm (and any associated parameters) under which the
+             content is digested. (The message-digesting process is the
+             same as in Section 9 in the case when there are no
+             authenticated attributes.)
+
+        o    contentInfo is the content that is digested. It
+             can have any of the defined content types.
+
+        o    digest is the result of the message-digesting process.
+
+   Note. The fact that the digestAlgorithm field comes before the
+   contentInfo field and the digest field comes after it makes it
+   possible to process a DigestedData value in a single pass.  (Single-
+   pass processing is described in Section 5.)
+
+13. Encrypted-data content type
+
+   The encrypted-data content type consists of encrypted content of any
+   type. Unlike the enveloped-data content type, the encrypted-data
+   content type has neither recipients nor encrypted content-encryption
+   keys. Keys are assumed to be managed by other means.
+
+   It is expected that the typical application of the encrypted-data
+   content type will be to encrypt content of the data content type for
+   local storage, perhaps where the encryption key is a password.
+
+   The encrypted-data content type shall have ASN.1 type EncryptedData:
+
+   EncryptedData ::= SEQUENCE {
+     version Version,
+     encryptedContentInfo EncryptedContentInfo }
+
+   The fields of type EncryptedData have the following meanings:
+
+        o    version is the syntax version number. It shall be
+             0 for this version of the document.
+
+        o    encryptedContentInfo is the encrypted content
+             information, as in Section 10.
+
+14. Object identifiers
+
+   This document defines seven object identifiers: pkcs-7, data,
+   signedData, envelopedData, signedAndEnvelopedData, digestedData, and
+   encryptedData.
+
+
+
+
+
+Kaliski                      Informational                     [Page 28]
+
+RFC 2315          PKCS #7: Crytographic Message Syntax        March 1998
+
+
+   The object identifier pkcs-7 identifies this document.
+
+   pkcs-7 OBJECT IDENTIFIER ::=
+     { iso(1) member-body(2) US(840) rsadsi(113549)
+         pkcs(1) 7 }
+
+   The object identifiers data, signedData, envelopedData,
+   signedAndEnvelopedData, digestedData, and encryptedData, identify,
+   respectively, the data, signed-data, enveloped-data, signed-and-
+   enveloped-data, digested-data, and encrypted-data content types
+   defined in Sections 8-13.
+
+   data OBJECT IDENTIFIER ::= { pkcs-7 1 }
+   signedData OBJECT IDENTIFIER ::= { pkcs-7 2 }
+   envelopedData OBJECT IDENTIFIER ::= { pkcs-7 3 }
+   signedAndEnvelopedData OBJECT IDENTIFIER ::=
+      { pkcs-7 4 }
+   digestedData OBJECT IDENTIFIER ::= { pkcs-7 5 }
+   encryptedData OBJECT IDENTIFIER ::= { pkcs-7 6 }
+
+   These object identifiers are intended to be used in the contentType
+   field of a value of type ContentInfo (see Section 5). The content
+   field of that type, which has the content-type-specific syntax ANY
+   DEFINED BY contentType, would have ASN.1 type Data, SignedData,
+   EnvelopedData, SignedAndEnvelopedData, DigestedData, and
+   EncryptedData, respectively. These object identifiers are also
+   intended to be used in a PKCS #9 content-type attribute.
+
+Security Considerations
+
+   Security issues are discussed throughout this memo.
+
+Revision history
+
+
+   Versions 1.0-1.3
+
+   Versions 1.0-1.3 were distributed to participants in RSA Data
+   Security, Inc.'s Public-Key Cryptography Standards meetings in
+   February and March 1991.
+
+
+   Version 1.4
+
+   Version 1.4 is part of the June 3, 1991 initial public release of
+   PKCS. Version 1.4 was published as NIST/OSI Implementors' Workshop
+   document SEC-SIG-91-22.
+
+
+
+
+Kaliski                      Informational                     [Page 29]
+
+RFC 2315          PKCS #7: Crytographic Message Syntax        March 1998
+
+
+   Version 1.5
+
+   Version 1.5 incorporates several editorial changes, including updates
+   to the references and the addition of a revision history. The
+   following substantive changes were made:
+
+        o    Section 6: CertificateRevocationLists type is
+             added.
+
+        o    Section 9.1: SignedData syntax is revised. The new
+             version allows for the dissemination of
+             certificate-revocation lists along with
+             signatures. It also allows for the dissemination
+             of certificates and certificate-revocation lists
+             alone, without any signatures.
+
+        o    Section 9.2: SignerInfo syntax is revised. The new
+             version includes a message-digest encryption
+             process compatible with Privacy-Enhanced Mail as
+             specified in RFC 1423.
+
+        o    Section 9.3: Meaning of "the DER encoding of the
+             authenticatedAttributes field" is clarified as
+             "the DER encoding of the Attributes value."
+
+        o    Section 10.3: Padding method for content-
+             encryption algorithms is described.
+
+        o    Section 11.1: SignedAndEnvelopedData syntax is
+             revised. The new version allows for the
+             dissemination of certificate-revocation lists.
+
+        o    Section 13: Encrypted-data content type is added.
+             This content type consists of encrypted content of
+             any type.
+
+        o    Section 14: encryptedData object identifier is
+             added.
+
+   Supersedes June 3, 1991 version, which was also published as NIST/OSI
+   Implementors' Workshop document SEC-SIG-91-22.
+
+
+
+
+
+
+
+
+
+
+Kaliski                      Informational                     [Page 30]
+
+RFC 2315          PKCS #7: Crytographic Message Syntax        March 1998
+
+
+Acknowledgements
+
+   This document is based on a contribution of RSA Laboratories, a
+   division of RSA Data Security, Inc.  Any substantial use of the text
+   from this document must acknowledge RSA Data Security, Inc. RSA Data
+   Security, Inc.  requests that all material mentioning or referencing
+   this document identify this as "RSA Data Security, Inc. PKCS #7".
+
+Author's Address
+
+   Burt Kaliski
+   RSA Laboratories East
+   20 Crosby Drive
+   Bedford, MA  01730
+
+   Phone: (617) 687-7000
+   EMail: burt@rsa.com
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Kaliski                      Informational                     [Page 31]
+
+RFC 2315          PKCS #7: Crytographic Message Syntax        March 1998
+
+
+Full Copyright Statement
+
+   Copyright (C) The Internet Society (1998).  All Rights Reserved.
+
+   This document and translations of it may be copied and furnished to
+   others, and derivative works that comment on or otherwise explain it
+   or assist in its implementation may be prepared, copied, published
+   and distributed, in whole or in part, without restriction of any
+   kind, provided that the above copyright notice and this paragraph are
+   included on all such copies and derivative works.  However, this
+   document itself may not be modified in any way, such as by removing
+   the copyright notice or references to the Internet Society or other
+   Internet organizations, except as needed for the purpose of
+   developing Internet standards in which case the procedures for
+   copyrights defined in the Internet Standards process must be
+   followed, or as required to translate it into languages other than
+   English.
+
+   The limited permissions granted above are perpetual and will not be
+   revoked by the Internet Society or its successors or assigns.
+
+   This document and the information contained herein is provided on an
+   "AS IS" basis and THE INTERNET SOCIETY AND THE INTERNET ENGINEERING
+   TASK FORCE DISCLAIMS ALL WARRANTIES, EXPRESS OR IMPLIED, INCLUDING
+   BUT NOT LIMITED TO ANY WARRANTY THAT THE USE OF THE INFORMATION
+   HEREIN WILL NOT INFRINGE ANY RIGHTS OR ANY IMPLIED WARRANTIES OF
+   MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
+
+Network Working Group                                         J. T. Korb
+Request for Comments: 877                              Purdue University
+                                                          September 1983
+
+
+
+          A Standard for the Transmission of IP Datagrams
+                               Over
+                       Public Data Networks
+
+
+
+
+This RFC specifies a standard adopted by CSNET, the VAN gateway, and
+other organizations for the transmission of IP datagrams over the
+X.25-based public data networks. 
+
+An X.25 virtual circuit is opened on demand when a datagram arrives at
+the network interface for transmission. A virtual circuit is closed
+after some period of inactivity (the length of the period depends on
+the cost associated with an open virtual circuit). A virtual circuit
+may also be closed if the interface runs out of virtual circuits. An
+algorithm for managing virtual circuits during peak demand is given
+in [1].
+
+STANDARDS
+
+1.1 The first octet in the Call User Data Field (the first data octet
+    in the Call Request packet) is used for protocol demultiplexing.
+    The value hex CC (binary 11001100, decimal 204) is used to mean
+    INTERNET PROTOCOL. 
+
+1.2 IP datagrams are sent as X.25 "complete packet sequences". That is,
+    datagrams begin on packet boundaries and the M bit ("more data") is
+    used for datagrams that are larger than one packet. There are no
+    additional headers or other data in the packets.
+
+1.3 Unless a larger packet size is negotiated, the maximum size of an
+    IP datagram transmitted over X.25 is 576 octets. If two sites
+    negotiate a large X.25 packet size (for example, 1024 octets), an
+    IP datagram of that size is allowed. 
+
+1.4 Either site may close a virtual circuit. If the virtual circuit is
+    closed or reset while a datagram is being transmitted, the datagram
+    is lost.
+
+GENERAL REMARKS
+
+2.1 Protocols above IP, such as TCP, do not affect this standard. In
+    particular, no attempt is made to open X.25 virtual circuits
+    corresponding to TCP connections.
+
+
+
+
+Korb                                                            [Page 1]
+
+RFC 877                                                   September 1983
+Transmission of IP Datagrams Over Public Data Networks
+
+
+2.2 Features of X.25 not discussed in this document are not used.
+    For example, interrupt packets and the D bit (indicating
+    end-to-end significance) are not used.
+
+2.3 Negotiable features (facilities) of X.25 are allowed. For
+    example, sites are free to negotiate larger packet and window
+    sizes.
+
+2.4 Some sites, such as CSNET sites, may attempt to open multiple
+    virtual circuits to a single site. Sites should attempt to
+    handle such incoming calls gracefully: transmit on the
+    additional circuits if possible and accept incoming datagrams
+    from them, but do not accept the CALL REQUEST, only to
+    immediately close the connection or ignore datagrams
+    transmitted on such circuits.
+
+
+REFERENCE
+
+[1] Comer, D.E. and Korb, J.T., "CSNET Protocol Software: The
+    IP-to-X.25 Interface", SIGCOMM Symposium on Communications
+    Architectures and Protocols, March 1983.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Korb                                                            [Page 2]
+
+ 
+ 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Kaliski                      Informational                     [Page 32]
+
+ 
+ 
+
+ 
+ 
+user-images.githubusercontent.com/93700294/211476670-6ff5fb4d-5b0f-4c0a-82cd-b6ff8c800669.jpeg#892
+
+chrome://autofill-internals/S89219.Μ-HΤߠ-
+
+To install GitHub Copilot, check out the Getting Started guides:
+- [Visual Studio](visualstudio/gettingstarted.md#getting-started-with-github-copilot-in-visual-studio)
+- [Visual Studio Code](visualstudiocode/gettingstarted.md#getting-started-with-github-copilot-in-visual-studio-code)
+- [JetBrains](jetbrains/gettingstarted.md#getting-started-with-github-copilot-in-jetbrains)
+- [Neovim](https://github.com/github/copilot.vim#getting-started)
+
+For a tour of GitHub Copilot, visit the homepage at [copilot.github.com](https://copilot.github.com).
+
+## Full documentation
+
+- [Visual Studio](visualstudio)
+- [Visual Studio Code](visualstudiocode)
+- [JetBrains](jetbrains)
+- [Neovim](https://github.com/github/copilot.vim/blob/release/doc/copilot.txt)
+
+CVE
+NVD	
+Go to for:
+CVSS Scores
+CPE Info
+     CVE List▾        CNAs▾         WGs▾         Board▾        About▾       News & Blog▾
+
+        Search CVE List         Downloads         Data Feeds         Update a CVE Record         Request CVE IDs        
+TOTAL CVE Records: 192566
+
+NOTICE: Transition to the all-new CVE website at WWW.CVE.ORG is underway and will last up to one year. (details)
+
+NOTICE: Changes coming to CVE Record Format JSON and CVE List Content Downloads in 2022.
+
+HOME > CVE > CVE-2022-22963  
+﻿
+Printer-Friendly View
+CVE-ID
+CVE-2022-22963
+Learn more at National Vulnerability Database (NVD)
+• CVSS Severity Rating • Fix Information • Vulnerable Software Versions • SCAP Mappings • CPE Information
+Description
+In Spring Cloud Function versions 3.1.6, 3.2.2 and older unsupported versions, when using routing functionality it is possible for a user to provide a specially crafted SpEL as a routing-expression that may result in remote code execution and access to local resources.
+References
+Note: References are provided for the convenience of the reader to help distinguish between vulnerabilities. The list is not intended to be complete.
+CISCO:20220401 Vulnerability in Spring Cloud Function Framework Affecting Cisco Products: March 2022
+URL:https://tools.cisco.com/security/center/content/CiscoSecurityAdvisory/cisco-sa-java-spring-scf-rce-DQrHhJxH
+CONFIRM:https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2022-0005
+URL:https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2022-0005
+MISC:https://tanzu.vmware.com/security/cve-2022-22963
+URL:https://tanzu.vmware.com/security/cve-2022-22963
+MISC:https://www.oracle.com/security-alerts/cpuapr2022.html
+URL:https://www.oracle.com/security-alerts/cpuapr2022.html
+MISC:https://www.oracle.com/security-alerts/cpujul2022.html
+URL:https://www.oracle.com/security-alerts/cpujul2022.html
+Assigning CNA
+VMware
+Date Record Created
+20220110	Disclaimer: The record creation date may reflect when the CVE ID was allocated or reserved, and does not necessarily indicate when this vulnerability was discovered, shared with the affected vendor, publicly disclosed, or updated in CVE.
+Phase (Legacy)
+Assigned (20220110)
+Votes (Legacy)
+Comments (Legacy)
+Proposed (Legacy)
+N/A
+This is a record on the CVE List, which provides common identifiers for publicly known cybersecurity vulnerabilities.
+SEARCH CVE USING KEYWORDS:  
+ 
+You can also search by reference using the CVE Reference Maps.
+For More Information:  CVE Request Web Form (select "Other" from dropdown)
+BACK TO TOP
+Site Map | Terms of Use | Privacy Policy | Contact Us | Follow CVE  Twitter LinkedIn GitHub YouTube Medium       Search CVE Website
+
+Use of the CVE® List and the associated references from this website are subject to the terms of use. CVE is sponsored by the U.S. Department of Homeland Security (DHS) Cybersecurity and Infrastructure Security Agency (CISA). Copyright © 1999–2023, The MITRE Corporation. CVE and the CVE logo are registered trademarks of The MITRE Corporation.
